@@ -1,0 +1,96 @@
+@if (mediaError()) {
+  <section class="panel"><p class="empty error">{{ mediaError() }}</p></section>
+} @else if (!media()) {
+  <section class="panel"><p class="empty">Đang tải…</p></section>
+} @else {
+  @let m = media()!;
+
+  @if (m.images?.bannerUrl) {
+    <div class="banner" [style.background-image]="'url(' + m.images?.bannerUrl + ')'"></div>
+  }
+
+  <section class="panel hero">
+    <img class="cover" [src]="m.images?.coverXl || m.images?.coverLg" [alt]="title()" />
+    <div>
+      <h1>{{ title() }}</h1>
+      <div class="tags">
+        @if (m.format) { <span class="tag">{{ m.format }}</span> }
+        @if (m.season) { <span class="tag">{{ m.season }} {{ m.seasonYear }}</span> }
+        @if (m.status) { <span class="tag">{{ m.status }}</span> }
+        @if (m.totalUnits) { <span class="tag">{{ m.totalUnits }} tập</span> }
+        @for (g of m.genres ?? []; track g.id) { <span class="tag">{{ g.name }}</span> }
+      </div>
+      <p class="desc" [innerHTML]="description()"></p>
+    </div>
+  </section>
+
+  @if (currentEpisode()) {
+    <section class="panel">
+      <h2>{{ title() }} – Tập {{ currentEpisode()!.episodeNumber }}</h2>
+
+      @if (sourceLoading()) {
+        <div class="screen-placeholder">Đang lấy nguồn…</div>
+      } @else if (source(); as src) {
+        <app-video-player [url]="playUrl()" [type]="src.type" (playbackError)="onPlaybackError($event)" />
+        <div class="source-info">
+          <b>{{ src.type }}</b> · server {{ src.server }} · proxy: {{ useProxy() ? 'có' : 'không' }}
+          <br />gốc: {{ src.url }}
+        </div>
+      }
+
+      @if (playerError()) {
+        <p class="error">{{ playerError() }}</p>
+      }
+    </section>
+  }
+
+  <section class="panel">
+    @if (providers().length === 0) {
+      <p class="empty">Anime này chưa có nguồn phát (streamingProviders trống).</p>
+    } @else {
+      <div class="controls">
+        <label>
+          Provider
+          <select [value]="provider()" (change)="selectProvider($any($event.target).value)">
+            @for (p of providers(); track p) { <option [value]="p">{{ p }}</option> }
+          </select>
+        </label>
+
+        <label>
+          Server
+          <select [value]="server()" (change)="selectServer($any($event.target).value)">
+            <option value="">(mặc định)</option>
+            @for (s of servers(); track s) { <option [value]="s">{{ s }}</option> }
+          </select>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" [checked]="forceProxy()" (change)="toggleProxy($event)" />
+          Luôn dùng proxy
+        </label>
+
+        @if (episodes().length) { <span class="tag">{{ episodes().length }} tập</span> }
+      </div>
+
+      @if (episodesLoading()) {
+        <p class="empty">Đang tải danh sách tập…</p>
+      } @else if (episodesError()) {
+        <p class="empty error">{{ episodesError() }}</p>
+      } @else {
+        <div class="episodes">
+          @for (ep of episodes(); track ep.episodeId) {
+            <button
+              type="button"
+              [class.active]="currentEpisode()?.episodeId === ep.episodeId"
+              [title]="ep.episodeId"
+              (click)="play(ep)">
+              {{ ep.episodeNumber }}
+            </button>
+          } @empty {
+            <p class="empty">Không có tập nào.</p>
+          }
+        </div>
+      }
+    }
+  </section>
+}

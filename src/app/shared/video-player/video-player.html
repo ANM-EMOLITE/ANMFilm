@@ -1,0 +1,11 @@
+<div class="screen">
+  @if (type() === 'EMBED') {
+    <iframe
+      [src]="url() | safeResourceUrl"
+      allow="autoplay; fullscreen; encrypted-media"
+      allowfullscreen
+      referrerpolicy="no-referrer"></iframe>
+  } @else {
+    <video #video controls autoplay playsinline (error)="onVideoError()"></video>
+  }
+</div>

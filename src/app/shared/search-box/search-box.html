@@ -1,0 +1,22 @@
+<form class="search" (submit)="$event.preventDefault(); submit()">
+  <input
+    type="text"
+    placeholder="Tìm anime… (vd: frieren)"
+    autocomplete="off"
+    [value]="query()"
+    (input)="onInput($event)"
+    (focus)="open.set(suggestions().length > 0)"
+    (keydown.escape)="open.set(false)" />
+  <button type="submit">Tìm</button>
+
+  @if (open()) {
+    <ul class="suggest">
+      @for (s of suggestions(); track s.id) {
+        <li (click)="pick(s)">
+          <span>{{ s.title }}</span>
+          <span class="tag">{{ s.mediaType }}</span>
+        </li>
+      }
+    </ul>
+  }
+</form>

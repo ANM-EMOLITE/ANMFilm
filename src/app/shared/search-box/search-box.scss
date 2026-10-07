@@ -1,0 +1,10 @@
+.search { position: relative; display: flex; gap: 8px; width: 100%; }
+input { flex: 1; min-width: 0; }
+.suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 64px; z-index: 20;
+  margin: 0; padding: 4px 0; list-style: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .35);
+}
+li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; cursor: pointer; }
+li:hover { background: var(--panel-2); }

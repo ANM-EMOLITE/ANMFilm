@@ -1,0 +1,95 @@
+@if (state().q) {
+  <section class="panel">
+    <div class="head">
+      <h2>Kết quả cho “{{ state().q }}”</h2>
+      <a class="back" routerLink="/">← Về trang chủ</a>
+    </div>
+    <ng-container *ngTemplateOutlet="list" />
+  </section>
+} @else {
+  <nav class="tabs" aria-label="Danh mục">
+    @for (t of tabs; track t.id) {
+      <a class="tab" [class.active]="t.id === state().tab"
+         [routerLink]="['/']" [queryParams]="{ tab: t.id.toLowerCase() }">{{ t.label }}</a>
+    }
+  </nav>
+
+  <section class="panel">
+    <div class="head">
+      <div>
+        <h2>{{ activeTab().label }}@if (state().tab === 'SEASON') { – Mùa {{ seasonLabels[state().season] }} {{ state().year }} }</h2>
+        <p class="hint">{{ activeTab().hint }}</p>
+      </div>
+
+      @if (state().tab === 'SEASON') {
+        <div class="season-picker">
+          <button type="button" class="ghost" (click)="shiftSeason(-1)" aria-label="Mùa trước">‹</button>
+          <select #s [value]="state().season" (change)="selectSeason(s.value, y.value)" aria-label="Mùa">
+            @for (season of seasons; track season) {
+              <option [value]="season">{{ seasonLabels[season] }}</option>
+            }
+          </select>
+          <select #y [value]="state().year" (change)="selectSeason(s.value, y.value)" aria-label="Năm">
+            @for (year of years; track year) {
+              <option [value]="year">{{ year }}</option>
+            }
+          </select>
+          <button type="button" class="ghost" (click)="shiftSeason(1)" aria-label="Mùa sau">›</button>
+        </div>
+      }
+    </div>
+
+    <ng-container *ngTemplateOutlet="list" />
+  </section>
+}
+
+<ng-template #list>
+  @if (loading()) {
+    <div class="grid">
+      @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) {
+        <div class="card skeleton"><div class="poster"></div><div class="line"></div><div class="line short"></div></div>
+      }
+    </div>
+  } @else if (error()) {
+    <p class="empty error">{{ error() }}</p>
+  } @else if (results().length === 0) {
+    <p class="empty">
+      @if (state().q) {
+        Không tìm thấy anime nào có nguồn phát.
+      } @else if (state().tab === 'SEASON') {
+        Mùa này chưa có anime nào có nguồn phát.
+        <button type="button" class="link" (click)="shiftSeason(-1)">Xem mùa trước →</button>
+      } @else {
+        Chưa có anime nào.
+      }
+    </p>
+  } @else {
+    <div class="grid">
+      @for (m of results(); track m.id) {
+        <a class="card" [routerLink]="['/anime', m.id]">
+          <div class="poster" [style.background]="m.images?.coverColor">
+            <img loading="lazy" [src]="m.images?.coverLg || m.images?.coverXl" [alt]="pickTitle(m.titles)" />
+            @if (m.status) {
+              <span class="badge" [class.airing]="m.status === 'RELEASING'">{{ statusLabel(m.status) }}</span>
+            }
+            @if (m.totalUnits && m.format !== 'MOVIE') {
+              <span class="eps">{{ m.totalUnits }} tập</span>
+            }
+          </div>
+          <div class="title">{{ pickTitle(m.titles) }}</div>
+          <div class="meta">
+            {{ m.format }}@if (m.seasonYear) { · {{ m.seasonYear }} }
+          </div>
+        </a>
+      }
+    </div>
+
+    @if (nextOffset() !== null) {
+      <div class="more">
+        <button type="button" (click)="loadMore()" [disabled]="loadingMore()">
+          {{ loadingMore() ? 'Đang tải…' : 'Xem thêm' }}
+        </button>
+      </div>
+    }
+  }
+</ng-template>
