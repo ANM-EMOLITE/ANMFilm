@@ -1,95 +1,129 @@
-@if (state().q) {
-  <section class="panel">
-    <div class="head">
-      <h2>Kết quả cho “{{ state().q }}”</h2>
-      <a class="back" routerLink="/">← Về trang chủ</a>
+<!-- ===== Hero (phim nổi bật) ===== -->
+@if (featured(); as f) {
+  <section class="hero">
+    <div class="hero-bg" [style.background-image]="'url(' + (f.images?.coverXl || f.images?.coverLg) + ')'"></div>
+    <div class="container hero-inner">
+      <img class="hero-cover" [src]="f.images?.coverXl || f.images?.coverLg" [alt]="pickTitle(f.titles)" />
+      <div class="hero-text">
+        <ui-badge tone="accent"><ui-icon name="flame" [size]="12" /> #1 Thịnh hành</ui-badge>
+        <h1>{{ pickTitle(f.titles) }}</h1>
+        <div class="hero-meta">
+          @if (f.format) { <span>{{ formatLabel(f.format) }}</span> }
+          @if (f.seasonYear) { <span>{{ f.seasonYear }}</span> }
+          @if (f.totalUnits) { <span>{{ f.totalUnits }} tập</span> }
+        </div>
+        <div class="hero-actions">
+          <a uiBtn size="lg" [routerLink]="['/anime', f.id]"><ui-icon name="play" [size]="18" /> Xem ngay</a>
+        </div>
+      </div>
     </div>
-    <ng-container *ngTemplateOutlet="list" />
   </section>
-} @else {
-  <nav class="tabs" aria-label="Danh mục">
-    @for (t of tabs; track t.id) {
-      <a class="tab" [class.active]="t.id === state().tab"
-         [routerLink]="['/']" [queryParams]="{ tab: t.id.toLowerCase() }">{{ t.label }}</a>
-    }
-  </nav>
+}
 
-  <section class="panel">
-    <div class="head">
+<div class="container page">
+  <!-- ===== Thanh điều hướng ===== -->
+  @if (state().q) {
+    <header class="page-head">
       <div>
-        <h2>{{ activeTab().label }}@if (state().tab === 'SEASON') { – Mùa {{ seasonLabels[state().season] }} {{ state().year }} }</h2>
+        <p class="eyebrow">Kết quả tìm kiếm</p>
+        <h1>“{{ state().q }}”</h1>
+      </div>
+      <a uiBtn variant="secondary" size="sm" routerLink="/"><ui-icon name="chevron-left" [size]="14" /> Trang chủ</a>
+    </header>
+  } @else {
+    <ui-tabs [items]="tabs" [active]="state().tab" (select)="selectTab($event)" />
+
+    <header class="page-head">
+      <div>
+        <h2 class="section-title">
+          {{ activeTab().label }}
+          @if (state().tab === 'SEASON') { <span class="sub">· {{ seasonTitle() }}</span> }
+        </h2>
         <p class="hint">{{ activeTab().hint }}</p>
       </div>
 
       @if (state().tab === 'SEASON') {
         <div class="season-picker">
-          <button type="button" class="ghost" (click)="shiftSeason(-1)" aria-label="Mùa trước">‹</button>
-          <select #s [value]="state().season" (change)="selectSeason(s.value, y.value)" aria-label="Mùa">
-            @for (season of seasons; track season) {
-              <option [value]="season">{{ seasonLabels[season] }}</option>
-            }
-          </select>
-          <select #y [value]="state().year" (change)="selectSeason(s.value, y.value)" aria-label="Năm">
-            @for (year of years; track year) {
-              <option [value]="year">{{ year }}</option>
-            }
-          </select>
-          <button type="button" class="ghost" (click)="shiftSeason(1)" aria-label="Mùa sau">›</button>
+          <button uiBtn variant="secondary" iconOnly aria-label="Mùa trước" (click)="shiftSeason(-1)">
+            <ui-icon name="chevron-left" />
+          </button>
+          <ui-dropdown
+            [options]="seasonOptions"
+            [value]="state().season"
+            (changed)="selectSeason($event, state().year)" />
+          <ui-dropdown
+            class="year"
+            [options]="yearOptions"
+            [value]="state().year"
+            [searchable]="true"
+            (changed)="selectSeason(state().season, $event)" />
+          <button uiBtn variant="secondary" iconOnly aria-label="Mùa sau" (click)="shiftSeason(1)">
+            <ui-icon name="chevron-right" />
+          </button>
+        </div>
+      }
+    </header>
+  }
+
+  <!-- ===== Lưới phim ===== -->
+  @if (loading()) {
+    <div class="grid">
+      @for (i of skeletons; track i) {
+        <div class="sk-card">
+          <ui-skeleton ratio="2 / 3" height="auto" radius="var(--radius)" />
+          <ui-skeleton width="85%" height="12px" />
+          <ui-skeleton width="45%" height="10px" />
         </div>
       }
     </div>
-
-    <ng-container *ngTemplateOutlet="list" />
-  </section>
-}
-
-<ng-template #list>
-  @if (loading()) {
-    <div class="grid">
-      @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) {
-        <div class="card skeleton"><div class="poster"></div><div class="line"></div><div class="line short"></div></div>
-      }
-    </div>
   } @else if (error()) {
-    <p class="empty error">{{ error() }}</p>
+    <ui-empty-state icon="alert" tone="danger" heading="Không tải được danh sách" [message]="error()">
+      <button uiBtn (click)="retry()"><ui-icon name="refresh" [size]="16" /> Thử lại</button>
+    </ui-empty-state>
   } @else if (results().length === 0) {
-    <p class="empty">
-      @if (state().q) {
-        Không tìm thấy anime nào có nguồn phát.
-      } @else if (state().tab === 'SEASON') {
-        Mùa này chưa có anime nào có nguồn phát.
-        <button type="button" class="link" (click)="shiftSeason(-1)">Xem mùa trước →</button>
-      } @else {
-        Chưa có anime nào.
-      }
-    </p>
+    @if (state().q) {
+      <ui-empty-state icon="search" heading="Không tìm thấy" message="Không có anime nào có nguồn phát khớp từ khóa này." />
+    } @else if (state().tab === 'SEASON') {
+      <ui-empty-state icon="calendar" heading="Mùa này chưa có anime" message="Chưa có anime nào có nguồn phát trong mùa này.">
+        <button uiBtn variant="secondary" (click)="shiftSeason(-1)">Xem mùa trước <ui-icon name="arrow-right" [size]="16" /></button>
+      </ui-empty-state>
+    } @else {
+      <ui-empty-state icon="film" heading="Chưa có anime nào" />
+    }
   } @else {
     <div class="grid">
-      @for (m of results(); track m.id) {
-        <a class="card" [routerLink]="['/anime', m.id]">
-          <div class="poster" [style.background]="m.images?.coverColor">
-            <img loading="lazy" [src]="m.images?.coverLg || m.images?.coverXl" [alt]="pickTitle(m.titles)" />
-            @if (m.status) {
-              <span class="badge" [class.airing]="m.status === 'RELEASING'">{{ statusLabel(m.status) }}</span>
-            }
-            @if (m.totalUnits && m.format !== 'MOVIE') {
-              <span class="eps">{{ m.totalUnits }} tập</span>
-            }
+      @for (m of gridItems(); track m.id; let i = $index) {
+        <app-media-card
+          [media]="m"
+          [rank]="state().tab === 'TRENDING' && !state().q && i < 9 ? i + 2 : null" />
+      }
+
+      @if (loadingMore()) {
+        @for (i of skeletons.slice(0, 6); track i) {
+          <div class="sk-card">
+            <ui-skeleton ratio="2 / 3" height="auto" radius="var(--radius)" />
+            <ui-skeleton width="85%" height="12px" />
           </div>
-          <div class="title">{{ pickTitle(m.titles) }}</div>
-          <div class="meta">
-            {{ m.format }}@if (m.seasonYear) { · {{ m.seasonYear }} }
-          </div>
-        </a>
+        }
       }
     </div>
 
-    @if (nextOffset() !== null) {
-      <div class="more">
-        <button type="button" (click)="loadMore()" [disabled]="loadingMore()">
-          {{ loadingMore() ? 'Đang tải…' : 'Xem thêm' }}
+    <footer class="list-foot">
+      <span class="count">
+        Đang hiển thị <b>{{ results().length }}</b>@if (total() > results().length) { / {{ total() }} } phim
+      </span>
+
+      @if (nextOffset() !== null) {
+        <button uiBtn variant="secondary" size="lg" class="more" [disabled]="loadingMore()" (click)="loadMore()">
+          @if (loadingMore()) {
+            <ui-spinner [size]="16" /> Đang tải…
+          } @else {
+            Xem thêm {{ pageSize }} phim <ui-icon name="chevron-down" [size]="18" />
+          }
         </button>
-      </div>
-    }
+      } @else if (results().length > pageSize) {
+        <button uiBtn variant="ghost" size="sm" (click)="scrollTop()">Đã hết · Lên đầu trang ↑</button>
+      }
+    </footer>
   }
-</ng-template>
+</div>

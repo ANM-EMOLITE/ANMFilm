@@ -2,10 +2,20 @@
   @if (type() === 'EMBED') {
     <iframe
       [src]="url() | safeResourceUrl"
-      allow="autoplay; fullscreen; encrypted-media"
+      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
       allowfullscreen
-      referrerpolicy="no-referrer"></iframe>
+      referrerpolicy="no-referrer"
+      (load)="onIframeLoad()"></iframe>
   } @else {
-    <video #video controls autoplay playsinline (error)="onVideoError()"></video>
+    <video
+      #video
+      controls
+      autoplay
+      playsinline
+      (playing)="onPlaying()"
+      (waiting)="onWaiting()"
+      (loadedmetadata)="onLoadedMetadata($event)"
+      (error)="onVideoError()"></video>
   }
+
 </div>

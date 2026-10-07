@@ -1,45 +1,41 @@
-import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
-import { BrowseTab, MediaSearchResult, SearchResponse, Season } from '../../core/models/api.models';
-import { AnimeApi } from '../../core/services/anime-api';
-import { errorMessage, pickTitle } from '../../core/utils/media.utils';
+import { BrowseTab, MediaSearchResult, SearchResponse, Season } from '@core/models/api.models';
+import { AnimeApi } from '@core/services/anime-api';
+import { errorMessage, formatLabel, pickDescription, pickTitle, seasonLabel } from '@core/utils/media.utils';
+import { MediaCard } from '@shared/components/media-card/media-card';
+import {
+  DropdownOption,
+  TabItem,
+  UiBadge,
+  UiButton,
+  UiDropdown,
+  UiEmptyState,
+  UiIcon,
+  UiSkeleton,
+  UiSpinner,
+  UiTabs,
+} from '@shared/ui';
 
-const PAGE_SIZE = 24;
+/** Số phim mỗi lần tải – hết thì bấm "Xem thêm" để tải tiếp. */
+const PAGE_SIZE = 50;
 
 const SEASONS: Season[] = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
 
-export const SEASON_LABELS: Record<Season, string> = {
-  WINTER: 'Đông',
-  SPRING: 'Xuân',
-  SUMMER: 'Hạ',
-  FALL: 'Thu',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  RELEASING: 'Đang chiếu',
-  FINISHED: 'Hoàn thành',
-  NOT_YET_RELEASED: 'Sắp chiếu',
-  CANCELLED: 'Đã hủy',
-  HIATUS: 'Tạm ngưng',
-};
-
-interface TabDef {
-  id: BrowseTab;
-  label: string;
+interface TabDef extends TabItem<BrowseTab> {
   hint: string;
 }
 
 const TABS: TabDef[] = [
-  { id: 'TRENDING', label: 'Thịnh hành', hint: 'Đang được xem nhiều gần đây' },
-  { id: 'POPULAR', label: 'Phổ biến', hint: 'Phổ biến nhất mọi thời đại' },
-  { id: 'SEASON', label: 'Theo mùa', hint: 'Anime theo mùa phát sóng' },
-  { id: 'NEW', label: 'Phim mới', hint: 'Ra mắt trong 6 tháng gần đây' },
-  { id: 'AIRING', label: 'Đang chiếu', hint: 'Đang phát sóng, có tập mới hằng tuần' },
-  { id: 'FINISHED', label: 'Trọn bộ', hint: 'Đã chiếu hết toàn bộ tập, mới hoàn thành gần đây' },
-  { id: 'MOVIE', label: 'Phim lẻ', hint: 'Anime movie' },
+  { id: 'TRENDING', label: 'Thịnh hành', icon: 'flame', hint: 'Đang được xem nhiều gần đây' },
+  { id: 'POPULAR', label: 'Phổ biến', icon: 'sparkles', hint: 'Phổ biến nhất mọi thời đại' },
+  { id: 'SEASON', label: 'Theo mùa', icon: 'calendar', hint: 'Anime theo mùa phát sóng' },
+  { id: 'NEW', label: 'Phim mới', icon: 'zap', hint: 'Ra mắt trong 6 tháng gần đây' },
+  { id: 'AIRING', label: 'Đang chiếu', icon: 'tv', hint: 'Đang phát sóng, có tập mới hằng tuần' },
+  { id: 'FINISHED', label: 'Trọn bộ', icon: 'check', hint: 'Đã chiếu hết toàn bộ tập, mới hoàn thành gần đây' },
+  { id: 'MOVIE', label: 'Phim lẻ', icon: 'film', hint: 'Anime movie' },
 ];
 
 /** Trạng thái trang lấy từ URL: ?q=... (tìm kiếm) hoặc ?tab=season&season=FALL&year=2026. */
@@ -61,7 +57,7 @@ function shiftSeason(season: Season, year: number, delta: number): { season: Sea
 
 @Component({
   selector: 'app-search-page',
-  imports: [RouterLink, NgTemplateOutlet],
+  imports: [RouterLink, MediaCard, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiSkeleton, UiSpinner, UiTabs],
   templateUrl: './search-page.html',
   styleUrl: './search-page.scss',
 })
@@ -70,20 +66,36 @@ export class SearchPage {
   private readonly router = inject(Router);
 
   readonly tabs = TABS;
-  readonly seasons = SEASONS;
-  readonly seasonLabels = SEASON_LABELS;
-  readonly years = Array.from({ length: currentSeason().year + 2 - 1970 }, (_, i) => currentSeason().year + 1 - i);
+  readonly pageSize = PAGE_SIZE;
+  readonly skeletons = Array.from({ length: 18 }, (_, i) => i);
+
+  readonly seasonOptions: DropdownOption<Season>[] = SEASONS.map(s => ({ value: s, label: `Mùa ${seasonLabel(s)}` }));
+  readonly yearOptions: DropdownOption<number>[] = Array.from({ length: currentSeason().year + 2 - 1970 }, (_, i) => {
+    const year = currentSeason().year + 1 - i;
+    return { value: year, label: String(year) };
+  });
 
   readonly state = signal<PageState>({ q: '', tab: 'TRENDING', ...currentSeason() });
   readonly results = signal<MediaSearchResult[]>([]);
+  readonly total = signal(0);
   readonly nextOffset = signal<number | null>(null);
   readonly loading = signal(false);
   readonly loadingMore = signal(false);
   readonly error = signal<string | null>(null);
 
   readonly activeTab = computed(() => TABS.find(t => t.id === this.state().tab) ?? TABS[0]);
+  readonly seasonTitle = computed(() => `Mùa ${seasonLabel(this.state().season)} ${this.state().year}`);
+
+  /** Phim nổi bật (hero) – phim đầu tiên của tab Thịnh hành. */
+  readonly featured = computed(() => {
+    const s = this.state();
+    return !s.q && s.tab === 'TRENDING' ? (this.results()[0] ?? null) : null;
+  });
+  readonly gridItems = computed(() => (this.featured() ? this.results().slice(1) : this.results()));
 
   protected readonly pickTitle = pickTitle;
+  protected readonly pickDescription = pickDescription;
+  protected readonly formatLabel = formatLabel;
 
   constructor() {
     inject(ActivatedRoute)
@@ -92,6 +104,7 @@ export class SearchPage {
         tap(state => {
           this.state.set(state);
           this.results.set([]);
+          this.total.set(0);
           this.nextOffset.set(null);
           this.error.set(null);
           this.loading.set(true);
@@ -99,11 +112,17 @@ export class SearchPage {
         switchMap(state => this.fetch(state, 0)),
         takeUntilDestroyed(),
       )
-      .subscribe(res => {
-        this.loading.set(false);
-        this.results.set(res?.results ?? []);
-        this.nextOffset.set(res?.hasNextPage ? (res.nextOffset ?? null) : null);
-      });
+      .subscribe(res => this.applyFirstPage(res));
+  }
+
+  retry(): void {
+    this.error.set(null);
+    this.loading.set(true);
+    this.fetch(this.state(), 0).subscribe(res => this.applyFirstPage(res));
+  }
+
+  selectTab(tab: BrowseTab): void {
+    this.router.navigate(['/'], { queryParams: { tab: tab.toLowerCase() } });
   }
 
   loadMore(): void {
@@ -119,12 +138,12 @@ export class SearchPage {
 
       const seen = new Set(this.results().map(m => m.id));
       this.results.update(list => [...list, ...res.results.filter(m => !seen.has(m.id))]);
-      this.nextOffset.set(res.hasNextPage ? (res.nextOffset ?? null) : null);
+      this.nextOffset.set(res.hasNextPage ? (res.nextOffset ?? res.offset + res.results.length) : null);
     });
   }
 
-  selectSeason(season: string, year: number | string): void {
-    this.router.navigate(['/'], { queryParams: { tab: 'season', season: season.toLowerCase(), year: +year } });
+  selectSeason(season: Season, year: number): void {
+    this.router.navigate(['/'], { queryParams: { tab: 'season', season: season.toLowerCase(), year } });
   }
 
   shiftSeason(delta: number): void {
@@ -132,8 +151,15 @@ export class SearchPage {
     this.selectSeason(season, year);
   }
 
-  statusLabel(status?: string): string {
-    return status ? (STATUS_LABELS[status] ?? status) : '';
+  scrollTop(): void {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  private applyFirstPage(res: SearchResponse | null): void {
+    this.loading.set(false);
+    this.results.set(res?.results ?? []);
+    this.total.set(res?.total ?? 0);
+    this.nextOffset.set(res?.hasNextPage ? (res.nextOffset ?? res.offset + res.results.length) : null);
   }
 
   private fetch(state: PageState, offset: number): Observable<SearchResponse | null> {

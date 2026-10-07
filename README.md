@@ -37,14 +37,60 @@ Nếu video không phát, tick **“Luôn dùng proxy”** rồi bấm lại t�
 ```
 src/app/
   core/
-    api.config.ts            # API_BASE_URL ('' = dùng dev proxy)
-    models/api.models.ts     # interface khớp response BE
-    services/anime-api.ts    # gọi BE + buildProxyUrl()
-    utils/media.utils.ts     # pickTitle, pickDescription...
+    api.config.ts              # API_BASE_URL ('' = dùng dev proxy)
+    models/api.models.ts       # interface khớp response BE
+    services/anime-api.ts      # gọi BE (có timeout) + buildProxyUrl()
+    utils/media.utils.ts       # pickTitle, statusLabel, formatLabel...
   features/
-    search/search-page.*     # trang tìm kiếm / anime phổ biến
-    watch/watch-page.*       # chi tiết + chọn provider/server/tập + player
+    search/search-page.*       # trang chủ: tab, theo mùa, tìm kiếm (50 phim/lần + "Xem thêm")
+    watch/watch-page.*         # trang xem: player, danh sách tập, thông tin phim
+    watch/watch-store.ts       # state + logic tự chuyển nguồn
   shared/
-    search-box/              # ô tìm kiếm có autocomplete
-    video-player/            # player HLS (hls.js) / DIRECT / EMBED
+    ui/                        # UI primitives dùng chung – import từ '@shared/ui'
+      button (uiBtn), icon, badge, dropdown, scroll-area, table (+ uiCell),
+      tabs, switch, spinner, skeleton, empty-state, toast (ToastService + ui-toaster)
+    components/
+      search-box/              # ô tìm kiếm có gợi ý, phím tắt "/" hoặc Ctrl+K
+      video-player/            # HLS (hls.js) / DIRECT / EMBED, báo ready / lỗi / treo
+      media-card/              # thẻ poster anime
+    pipes/safe-resource-url.pipe.ts
 ```
+
+Alias import: `@core/*` → `src/app/core/*`, `@shared/*` → `src/app/shared/*` (tsconfig.json).
+Design tokens (màu, radius, shadow…) và thanh cuộn custom nằm trong `src/styles.scss`.### Tự động chuyển nguồn (chạy ngầm, người xem không thấy)
+
+Logic ở `features/watch/watch-store.ts`:
+
+- Mọi request có timeout (`REQUEST_TIMEOUT` trong `anime-api.ts`). Timeout, 5xx, 504, lỗi mạng → bỏ qua nguồn đó.
+- Danh sách tập = gộp từ mọi provider (tải song song), so số tập theo giá trị (`001` == `1`).
+- Thứ tự provider: nguồn ổn định trước, `LOW_PRIORITY_PROVIDERS` (ANIMEVIETSUB – hay sập buổi tối) xếp cuối, còn lại theo `similarity`.
+- Bấm tập: lấy link → phát trực tiếp → qua proxy → server/provider khác có tập đó.
+- Player không phát được sau 20s, hoặc đang xem mà đứng > 25s / lỗi HLS → tự đổi nguồn, phát tiếp đúng vị trí cũ.
+- Mọi nguồn đều lỗi → hiện "Tập phim này hiện chưa xem được" + nút Thử lại.
+
+## Cấu trúc
+
+```
+src/app/
+  core/
+    api.config.ts              # API_BASE_URL ('' = dùng dev proxy)
+    models/api.models.ts       # interface khớp response BE
+    services/anime-api.ts      # gọi BE (có timeout) + buildProxyUrl()
+    utils/media.utils.ts       # pickTitle, statusLabel, formatLabel...
+  features/
+    search/search-page.*       # trang chủ: tab, theo mùa, tìm kiếm (50 phim/lần + "Xem thêm")
+    watch/watch-page.*         # trang xem: player, danh sách tập, bảng nguồn
+    watch/watch-store.ts       # state + logic tự chuyển nguồn
+  shared/
+    ui/                        # UI primitives dùng chung – import từ '@shared/ui'
+      button (uiBtn), icon, badge, dropdown, scroll-area, table (+ uiCell),
+      tabs, switch, spinner, skeleton, empty-state, toast (ToastService + ui-toaster)
+    components/
+      search-box/              # ô tìm kiếm có gợi ý, phím tắt "/" hoặc Ctrl+K
+      video-player/            # HLS (hls.js) / DIRECT / EMBED, báo ready / lỗi / treo
+      media-card/              # thẻ poster anime
+    pipes/safe-resource-url.pipe.ts
+```
+
+Alias import: `@core/*` → `src/app/core/*`, `@shared/*` → `src/app/shared/*` (tsconfig.json).
+Design tokens (màu, radius, shadow…) và thanh cuộn custom nằm trong `src/styles.scss`.

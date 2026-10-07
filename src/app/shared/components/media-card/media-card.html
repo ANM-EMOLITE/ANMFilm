@@ -1,0 +1,29 @@
+@let m = media();
+<a class="media" [routerLink]="['/anime', m.id]" [attr.aria-label]="title()">
+  <div class="poster" [style.background-color]="m.images?.coverColor">
+    @if (cover()) {
+      <img loading="lazy" decoding="async" [src]="cover()" [alt]="title()" />
+    }
+
+    <div class="top">
+      @if (m.status === 'RELEASING') {
+        <ui-badge tone="success" solid>{{ status() }}</ui-badge>
+      }
+      @if (rank()) { <span class="rank">#{{ rank() }}</span> }
+    </div>
+
+    @if (m.totalUnits && m.format !== 'MOVIE') {
+      <span class="eps">{{ m.totalUnits }} tập</span>
+    }
+
+    <div class="play"><ui-icon name="play" [size]="22" /></div>
+  </div>
+
+  <div class="info">
+    <h3 class="line-clamp-2" [title]="title()">{{ title() }}</h3>
+    <div class="meta">
+      @if (format()) { <span>{{ format() }}</span> }
+      @if (m.seasonYear) { <span>{{ m.seasonYear }}</span> }
+    </div>
+  </div>
+</a>

@@ -1,96 +1,172 @@
-@if (mediaError()) {
-  <section class="panel"><p class="empty error">{{ mediaError() }}</p></section>
-} @else if (!media()) {
-  <section class="panel"><p class="empty">Đang tải…</p></section>
-} @else {
-  @let m = media()!;
-
-  @if (m.images?.bannerUrl) {
-    <div class="banner" [style.background-image]="'url(' + m.images?.bannerUrl + ')'"></div>
-  }
-
-  <section class="panel hero">
-    <img class="cover" [src]="m.images?.coverXl || m.images?.coverLg" [alt]="title()" />
-    <div>
-      <h1>{{ title() }}</h1>
-      <div class="tags">
-        @if (m.format) { <span class="tag">{{ m.format }}</span> }
-        @if (m.season) { <span class="tag">{{ m.season }} {{ m.seasonYear }}</span> }
-        @if (m.status) { <span class="tag">{{ m.status }}</span> }
-        @if (m.totalUnits) { <span class="tag">{{ m.totalUnits }} tập</span> }
-        @for (g of m.genres ?? []; track g.id) { <span class="tag">{{ g.name }}</span> }
+@if (store.mediaError()) {
+  <div class="container page-state">
+    <ui-empty-state icon="alert" tone="danger" heading="Không tải được thông tin phim" [message]="store.mediaError()">
+      <button uiBtn (click)="store.load(id())"><ui-icon name="refresh" [size]="16" /> Thử lại</button>
+      <a uiBtn variant="secondary" routerLink="/">Về trang chủ</a>
+    </ui-empty-state>
+  </div>
+} @else if (!store.media()) {
+  <!-- Skeleton -->
+  <div class="container theater">
+    <div class="player-col"><ui-skeleton ratio="16 / 9" height="auto" radius="var(--radius-lg)" /></div>
+    <div class="side card skeleton-side">
+      <ui-skeleton width="50%" height="18px" />
+      <ui-skeleton height="40px" />
+      <div class="ep-grid">
+        @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]; track i) { <ui-skeleton height="38px" /> }
       </div>
-      <p class="desc" [innerHTML]="description()"></p>
     </div>
-  </section>
+  </div>
+} @else {
+  @let m = store.media()!;
 
-  @if (currentEpisode()) {
-    <section class="panel">
-      <h2>{{ title() }} – Tập {{ currentEpisode()!.episodeNumber }}</h2>
-
-      @if (sourceLoading()) {
-        <div class="screen-placeholder">Đang lấy nguồn…</div>
-      } @else if (source(); as src) {
-        <app-video-player [url]="playUrl()" [type]="src.type" (playbackError)="onPlaybackError($event)" />
-        <div class="source-info">
-          <b>{{ src.type }}</b> · server {{ src.server }} · proxy: {{ useProxy() ? 'có' : 'không' }}
-          <br />gốc: {{ src.url }}
-        </div>
-      }
-
-      @if (playerError()) {
-        <p class="error">{{ playerError() }}</p>
-      }
-    </section>
+  @if (backdrop()) {
+    <div class="backdrop" [style.background-image]="'url(' + backdrop() + ')'"></div>
   }
 
-  <section class="panel">
-    @if (providers().length === 0) {
-      <p class="empty">Anime này chưa có nguồn phát (streamingProviders trống).</p>
-    } @else {
-      <div class="controls">
-        <label>
-          Provider
-          <select [value]="provider()" (change)="selectProvider($any($event.target).value)">
-            @for (p of providers(); track p) { <option [value]="p">{{ p }}</option> }
-          </select>
-        </label>
+  <div class="container">
+    <!-- ===== Player + danh sách tập ===== -->
+    <section class="theater">
+      <div class="player-col">
+        <div class="player">
+          @if (store.source(); as src) {
+            <app-video-player
+              [url]="store.playUrl()"
+              [type]="src.type"
+              [startAt]="store.startAt()"
+              (ready)="store.onPlayerReady()"
+              (playbackError)="onPlayerError($event)" />
+          }
 
-        <label>
-          Server
-          <select [value]="server()" (change)="selectServer($any($event.target).value)">
-            <option value="">(mặc định)</option>
-            @for (s of servers(); track s) { <option [value]="s">{{ s }}</option> }
-          </select>
-        </label>
-
-        <label class="check">
-          <input type="checkbox" [checked]="forceProxy()" (change)="toggleProxy($event)" />
-          Luôn dùng proxy
-        </label>
-
-        @if (episodes().length) { <span class="tag">{{ episodes().length }} tập</span> }
-      </div>
-
-      @if (episodesLoading()) {
-        <p class="empty">Đang tải danh sách tập…</p>
-      } @else if (episodesError()) {
-        <p class="empty error">{{ episodesError() }}</p>
-      } @else {
-        <div class="episodes">
-          @for (ep of episodes(); track ep.episodeId) {
-            <button
-              type="button"
-              [class.active]="currentEpisode()?.episodeId === ep.episodeId"
-              [title]="ep.episodeId"
-              (click)="play(ep)">
-              {{ ep.episodeNumber }}
-            </button>
-          } @empty {
-            <p class="empty">Không có tập nào.</p>
+          @if ((store.phase() === 'loading' && !store.source()) || (store.phase() === 'idle' && store.loadingList())) {
+            <div class="screen-overlay">
+              <ui-spinner [size]="42" />
+              <p>Đang tải dữ liệu phim…</p>
+            </div>
+          } @else if (store.phase() === 'failed') {
+            <div class="screen-overlay">
+              <ui-empty-state icon="alert" tone="danger" heading="Không phát được tập này" [message]="store.playerError()" compact>
+                <button uiBtn size="sm" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
+              </ui-empty-state>
+            </div>
+          } @else if (store.phase() === 'idle') {
+            <div class="screen-overlay poster" [style.background-image]="'url(' + (m.images?.coverXl || m.images?.coverLg) + ')'">
+              <div class="start">
+                @if (store.episodes().length) {
+                  <button class="big-play" type="button" aria-label="Phát" (click)="playFirst()">
+                    <ui-icon name="play" [size]="34" />
+                  </button>
+                  <p>Bắt đầu xem từ <b>Tập {{ store.episodes()[0].episodeNumber }}</b></p>
+                } @else {
+                  <ui-empty-state icon="tv" heading="Phim chưa có tập để xem" message="Vui lòng quay lại sau." compact>
+                    <button uiBtn size="sm" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
+                  </ui-empty-state>
+                }
+              </div>
+            </div>
           }
         </div>
-      }
-    }
-  </section>
+
+        <!-- Thanh dưới player -->
+        <div class="now card">
+          <div class="now-title">
+            <span class="eyebrow">Đang xem</span>
+            <h1>
+              {{ store.title() }}
+              @if (store.episodeNumber()) { <span class="ep-label">· Tập {{ store.episodeNumber() }}</span> }
+            </h1>
+          </div>
+          <div class="now-actions">
+            <button uiBtn variant="secondary" size="sm" [disabled]="!store.hasPrev()" (click)="store.playPrev()">
+              <ui-icon name="chevron-left" [size]="16" /> Tập trước
+            </button>
+            <button uiBtn size="sm" [disabled]="!store.hasNext()" (click)="store.playNext()">
+              Tập sau <ui-icon name="chevron-right" [size]="16" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="side card">
+        <header class="side-head">
+          <h2 class="section-title">Danh sách tập</h2>
+          @if (store.episodes().length) { <span class="ep-count">{{ store.episodes().length }} tập</span> }
+        </header>
+
+        @if (store.episodes().length > 24) {
+          <div class="ep-tools">
+            @if (ranges().length && !episodeQuery()) {
+              <ui-dropdown class="range" [options]="ranges()" [value]="range()" (changed)="range.set($event)" />
+            }
+            <label class="ep-search">
+              <ui-icon name="search" [size]="14" />
+              <input type="text" inputmode="numeric" placeholder="Tìm tập…" [value]="episodeQuery()" (input)="onEpisodeQuery($event)" />
+            </label>
+          </div>
+        }
+
+        @if (store.loadingList() && !store.episodes().length) {
+          <div class="ep-grid">
+            @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) { <ui-skeleton height="38px" /> }
+          </div>
+        } @else if (!store.episodes().length) {
+          <ui-empty-state icon="tv" heading="Chưa có tập phim" message="Phim này hiện chưa có tập để xem." compact>
+            @if (store.hasProviders()) {
+              <button uiBtn size="sm" variant="secondary" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
+            }
+          </ui-empty-state>
+        } @else {
+          <ui-scroll-area #episodeScroll class="ep-scroll" maxHeight="min(52vh, 460px)">
+            <div class="ep-grid">
+              @for (e of visibleEpisodes(); track e.episodeId) {
+                <button
+                  type="button"
+                  class="ep"
+                  [class.active]="isCurrent(e.episodeNumber)"
+                  [title]="'Tập ' + e.episodeNumber"
+                  (click)="play(e.episodeNumber)">
+                  @if (isCurrent(e.episodeNumber) && store.phase() === 'playing') {
+                    <span class="eq"><i></i><i></i><i></i></span>
+                  }
+                  {{ e.episodeNumber }}
+                </button>
+              } @empty {
+                <p class="text-muted no-ep">Không có tập “{{ episodeQuery() }}”.</p>
+              }
+            </div>
+          </ui-scroll-area>
+        }
+      </aside>
+    </section>
+
+    <!-- ===== Thông tin phim ===== -->
+    <section class="details card">
+      <img class="cover" [src]="m.images?.coverXl || m.images?.coverLg" [alt]="store.title()" />
+      <div class="details-body">
+        <h2>{{ store.title() }}</h2>
+        @if (m.titles?.['ja-ro'] && m.titles?.['ja-ro'] !== store.title()) {
+          <p class="alt-title">{{ m.titles?.['ja-ro'] }}</p>
+        }
+
+        <div class="genres">
+          @for (g of m.genres ?? []; track g.id) { <ui-badge>{{ g.name }}</ui-badge> }
+        </div>
+
+        @if (description()) {
+          <div class="desc" [class.expanded]="descExpanded()" [innerHTML]="description()"></div>
+          <button uiBtn variant="ghost" size="sm" class="more" (click)="descExpanded.set(!descExpanded())">
+            {{ descExpanded() ? 'Thu gọn' : 'Xem thêm' }}
+            <ui-icon [name]="descExpanded() ? 'chevron-left' : 'chevron-down'" [size]="14" />
+          </button>
+        }
+
+        <dl class="facts">
+          @for (f of facts(); track f.label) {
+            <div><dt>{{ f.label }}</dt><dd>{{ f.value }}</dd></div>
+          }
+        </dl>
+      </div>
+    </section>
+  </div>
 }

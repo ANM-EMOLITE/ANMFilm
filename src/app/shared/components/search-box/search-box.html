@@ -1,20 +1,36 @@
-<form class="search" (submit)="$event.preventDefault(); submit()">
+<form class="search" [class.open]="open()" role="search" (submit)="$event.preventDefault(); submit()">
+  <ui-icon class="lead" name="search" [size]="18" />
   <input
+    #input
     type="text"
-    placeholder="Tìm anime… (vd: frieren)"
+    placeholder="Tìm anime… (vd: Frieren)"
     autocomplete="off"
+    aria-label="Tìm anime"
     [value]="query()"
     (input)="onInput($event)"
     (focus)="open.set(suggestions().length > 0)"
-    (keydown.escape)="open.set(false)" />
-  <button type="submit">Tìm</button>
+    (keydown)="onKeydown($event)" />
+
+  @if (loading()) {
+    <ui-spinner [size]="16" />
+  } @else if (query()) {
+    <button type="button" class="clear" aria-label="Xóa" (click)="clear()"><ui-icon name="x" [size]="14" /></button>
+  } @else {
+    <kbd>/</kbd>
+  }
 
   @if (open()) {
-    <ul class="suggest">
-      @for (s of suggestions(); track s.id) {
-        <li (click)="pick(s)">
-          <span>{{ s.title }}</span>
-          <span class="tag">{{ s.mediaType }}</span>
+    <ul class="suggest" role="listbox">
+      @for (s of suggestions(); track s.id; let i = $index) {
+        <li
+          role="option"
+          [class.active]="i === activeIndex()"
+          [attr.aria-selected]="i === activeIndex()"
+          (mouseenter)="activeIndex.set(i)"
+          (click)="pick(s)">
+          <ui-icon name="film" [size]="14" />
+          <span class="title">{{ s.title }}</span>
+          <ui-icon class="go" name="arrow-right" [size]="14" />
         </li>
       }
     </ul>

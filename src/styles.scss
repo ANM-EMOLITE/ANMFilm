@@ -1,36 +1,199 @@
+// =====================================================================
+//  Design tokens
+// =====================================================================
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --panel-2: #1f232c;
-  --line: #2a2f3a;
-  --text: #e6e8ee;
-  --muted: #8b93a4;
-  --accent: #7c9cff;
-  --accent-2: #a3e3b4;
-  --danger: #ff7b7b;
-  --radius: 10px;
   color-scheme: dark;
+
+  // Surfaces
+  --bg: #0a0b10;
+  --bg-elevated: #10121a;
+  --surface: #151823;
+  --surface-2: #1c2030;
+  --surface-3: #252a3d;
+  --overlay: rgb(10 11 16 / .78);
+
+  // Lines
+  --line: rgb(255 255 255 / .07);
+  --line-strong: rgb(255 255 255 / .14);
+
+  // Text
+  --text: #eef0f6;
+  --text-2: #b7bdcc;
+  --muted: #7d8498;
+
+  // Brand / status
+  --accent: #ff5c8a;
+  --accent-2: #8b5cff;
+  --accent-soft: rgb(255 92 138 / .14);
+  --accent-gradient: linear-gradient(135deg, #ff5c8a 0%, #8b5cff 100%);
+  --success: #34d399;
+  --success-soft: rgb(52 211 153 / .14);
+  --warning: #fbbf24;
+  --warning-soft: rgb(251 191 36 / .14);
+  --danger: #f87171;
+  --danger-soft: rgb(248 113 113 / .14);
+  --info: #60a5fa;
+  --info-soft: rgb(96 165 250 / .14);
+
+  // Shape
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+
+  // Elevation
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / .25);
+  --shadow: 0 10px 30px rgb(0 0 0 / .35);
+  --shadow-lg: 0 24px 60px rgb(0 0 0 / .5);
+  --ring: 0 0 0 3px rgb(255 92 138 / .35);
+
+  // Motion
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur: .18s;
+
+  // Layout
+  --container: 1360px;
+  --header-h: 64px;
+
+  --font: 'Be Vietnam Pro', system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
-* { box-sizing: border-box; }
+// =====================================================================
+//  Base
+// =====================================================================
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgb(139 92 255 / .12), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgb(255 92 138 / .08), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
-  font: 14px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  font: 14px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased;
 }
 
-input, select, button {
-  font: inherit; color: var(--text);
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
-}
-input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-button { cursor: pointer; background: var(--accent); color: #0b0d12; border: none; font-weight: 600; }
-button:disabled { opacity: .5; cursor: default; }
+a { color: inherit; }
+img { max-width: 100%; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; letter-spacing: -.01em; }
+p { margin: 0; }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-.panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--muted); }
-.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
-.empty { color: var(--muted); text-align: center; padding: 24px 0; margin: 0; }
-.error { color: var(--danger); }
+input, select, textarea, button { font: inherit; color: inherit; }
+
+::selection { background: var(--accent); color: #fff; }
+
+:focus-visible { outline: none; box-shadow: var(--ring); }
+
+// =====================================================================
+//  Scrollbar (toàn cục) — dùng chung với <ui-scroll-area>
+// =====================================================================
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: padding-box;
+  &:hover { background-color: #343a52; }
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+.no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+// =====================================================================
+//  Layout helpers
+// =====================================================================
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: clamp(16px, 3vw, 32px);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.section-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 18px; font-weight: 700;
+  &::before {
+    content: ''; width: 4px; height: 18px; border-radius: 2px;
+    background: var(--accent-gradient);
+  }
+}
+
+.text-muted { color: var(--muted); }
+.text-danger { color: var(--danger); }
+
+.line-clamp-2 {
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@keyframes ui-fade-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+@keyframes ui-shimmer { 100% { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+// =====================================================================
+//  Button – dùng với directive [uiBtn] (shared/ui/button.ts)
+// =====================================================================
+.ui-btn {
+  --h: 40px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: var(--h); padding: 0 18px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  font-weight: 600; font-size: 13px; white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: background var(--dur), border-color var(--dur), color var(--dur), transform var(--dur), box-shadow var(--dur);
+
+  &:active:not(:disabled) { transform: translateY(1px); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+
+  &--primary {
+    color: #fff; background: var(--accent-gradient);
+    box-shadow: 0 6px 20px rgb(255 92 138 / .28);
+    &:hover:not(:disabled) { box-shadow: 0 8px 26px rgb(255 92 138 / .42); filter: brightness(1.06); }
+  }
+  &--secondary {
+    color: var(--text); background: var(--surface-2); border-color: var(--line);
+    &:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-strong); }
+  }
+  &--ghost {
+    color: var(--text-2); background: transparent;
+    &:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+  }
+  &--danger {
+    color: var(--danger); background: var(--danger-soft);
+    &:hover:not(:disabled) { background: rgb(248 113 113 / .24); }
+  }
+
+  &.is-active { color: var(--text); background: var(--accent-soft); border-color: rgb(255 92 138 / .4); }
+
+  &--sm { --h: 32px; padding: 0 12px; font-size: 12px; gap: 6px; }
+  &--lg { --h: 48px; padding: 0 26px; font-size: 15px; border-radius: var(--radius); }
+  &--icon { padding: 0; width: var(--h); }
+  &--block { width: 100%; }
+}
+
+html, body { overflow-x: clip; }

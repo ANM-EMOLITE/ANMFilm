@@ -1,155 +1,126 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
-import { Episode, MediaDetail, StreamSource } from '../../core/models/api.models';
-import { AnimeApi } from '../../core/services/anime-api';
-import { errorMessage, pickDescription, pickTitle } from '../../core/utils/media.utils';
-import { VideoPlayer } from '../../shared/video-player/video-player';
+import { Component, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { formatLabel, pickDescription, seasonLabel, statusLabel } from '@core/utils/media.utils';
+import { VideoPlayer } from '@shared/components/video-player/video-player';
+import { DropdownOption, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner } from '@shared/ui';
+import { WatchStore, sameEpisode } from './watch-store';
 
-/**
- * Luồng xem phim:
- * metadata (lấy provider) → servers → episodes → source → player (qua proxy nếu cần).
- */
+/** Danh sách tập dài thì chia nhóm (1–100, 101–200…). */
+const RANGE_SIZE = 100;
+
 @Component({
   selector: 'app-watch-page',
-  imports: [VideoPlayer],
+  imports: [RouterLink, VideoPlayer, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner],
+  providers: [WatchStore],
   templateUrl: './watch-page.html',
   styleUrl: './watch-page.scss',
 })
 export class WatchPage {
-  private readonly api = inject(AnimeApi);
+  protected readonly store = inject(WatchStore);
+  private readonly router = inject(Router);
 
-  /** Route param :id (withComponentInputBinding). */
+  /** Route param :id và query ?ep= (withComponentInputBinding). */
   readonly id = input.required<string>();
+  readonly ep = input<string>();
 
-  readonly media = signal<MediaDetail | null>(null);
-  readonly mediaError = signal<string | null>(null);
+  protected readonly player = viewChild(VideoPlayer);
+  private readonly episodeScroll = viewChild<UiScrollArea>('episodeScroll');
 
-  readonly providers = computed(() => Object.keys(this.media()?.streamingProviders ?? {}));
-  readonly provider = signal('');
+  protected readonly descExpanded = signal(false);
+  protected readonly episodeQuery = signal('');
 
-  readonly servers = signal<string[]>([]);
-  readonly server = signal('');
-
-  readonly episodes = signal<Episode[]>([]);
-  readonly episodesLoading = signal(false);
-  readonly episodesError = signal<string | null>(null);
-
-  readonly currentEpisode = signal<Episode | null>(null);
-  readonly source = signal<StreamSource | null>(null);
-  readonly sourceLoading = signal(false);
-  readonly playerError = signal<string | null>(null);
-  readonly forceProxy = signal(false);
-
-  readonly title = computed(() => pickTitle(this.media()?.titles));
-  readonly description = computed(() => pickDescription(this.media()?.descriptions));
-
-  readonly useProxy = computed(() => {
-    const src = this.source();
-    return !!src && src.type !== 'EMBED' && (src.corsProxyRequired || this.forceProxy());
+  // ---------- Thông tin phim ----------
+  protected readonly description = computed(() => pickDescription(this.store.media()?.descriptions));
+  protected readonly backdrop = computed(() => {
+    const images = this.store.media()?.images;
+    return images?.bannerUrl || images?.coverXl || images?.coverLg || '';
+  });
+  protected readonly facts = computed(() => {
+    const m = this.store.media();
+    if (!m) return [];
+    return [
+      { label: 'Định dạng', value: formatLabel(m.format) },
+      { label: 'Trạng thái', value: statusLabel(m.status) },
+      { label: 'Mùa', value: m.season ? `${seasonLabel(m.season)} ${m.seasonYear ?? ''}` : '' },
+      { label: 'Số tập', value: m.totalUnits ? `${m.totalUnits}` : '' },
+      { label: 'Thời lượng', value: m.unitDurationMin ? `${m.unitDurationMin} phút/tập` : '' },
+      { label: 'Studio', value: (m.studios ?? []).filter(s => s.isAnimationStudio).map(s => s.name).join(', ') },
+    ].filter(f => f.value);
   });
 
-  /** URL thực sự đưa vào player. */
-  readonly playUrl = computed(() => {
-    const src = this.source();
-    if (!src) return '';
-    return this.useProxy() ? this.api.buildProxyUrl(src.url, src.proxyHeaders) : src.url;
+  // ---------- Danh sách tập ----------
+  protected readonly ranges = computed<DropdownOption<number>[]>(() => {
+    const count = this.store.episodes().length;
+    if (count <= RANGE_SIZE) return [];
+    const eps = this.store.episodes();
+    return Array.from({ length: Math.ceil(count / RANGE_SIZE) }, (_, i) => {
+      const from = eps[i * RANGE_SIZE].episodeNumber;
+      const to = eps[Math.min(count, (i + 1) * RANGE_SIZE) - 1].episodeNumber;
+      return { value: i, label: `Tập ${from} – ${to}` };
+    });
+  });
+
+  /** Tự nhảy tới nhóm chứa tập đang xem; người dùng vẫn đổi tay được. */
+  protected readonly range = linkedSignal(() => Math.max(0, Math.floor(this.store.episodeIndex() / RANGE_SIZE)));
+
+  protected readonly visibleEpisodes = computed(() => {
+    const q = this.episodeQuery().trim();
+    const eps = this.store.episodes();
+    if (q) return eps.filter(e => e.episodeNumber.includes(q));
+    return this.ranges().length ? eps.slice(this.range() * RANGE_SIZE, (this.range() + 1) * RANGE_SIZE) : eps;
   });
 
   constructor() {
-    // Đổi :id → tải lại metadata.
+    // Đổi :id → tải lại toàn bộ.
     effect(() => {
       const id = this.id();
-      untracked(() => this.loadMedia(id));
+      untracked(() => {
+        this.episodeQuery.set('');
+        this.descExpanded.set(false);
+        void this.store.load(id, this.ep());
+      });
+    });
+
+    // Đồng bộ tập đang xem lên URL (?ep=) để F5 / chia sẻ link vẫn đúng tập.
+    effect(() => {
+      const ep = this.store.episodeNumber();
+      if (!ep || sameEpisode(ep, untracked(this.ep))) return;
+      untracked(() =>
+        this.router.navigate([], { queryParams: { ep }, queryParamsHandling: 'merge', replaceUrl: true }),
+      );
+    });
+
+    // Cuộn tới tập đang xem trong danh sách.
+    effect(() => {
+      this.store.episodeNumber();
+      this.visibleEpisodes();
+      queueMicrotask(() => {
+        const el = document.querySelector<HTMLElement>('.ep.active');
+        if (el) this.episodeScroll()?.scrollIntoView(el);
+      });
     });
   }
 
-  async loadMedia(id: string): Promise<void> {
-    this.media.set(null);
-    this.mediaError.set(null);
-    this.resetPlayback();
-    this.episodes.set([]);
-
-    try {
-      const media = await firstValueFrom(this.api.getMetadata(id));
-      this.media.set(media);
-
-      const first = this.providers()[0];
-      if (first) await this.selectProvider(first);
-    } catch (err) {
-      this.mediaError.set(errorMessage(err));
-    }
+  protected play(episodeNumber: string): void {
+    void this.store.play(episodeNumber);
+    if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async selectProvider(provider: string): Promise<void> {
-    this.provider.set(provider);
-    this.servers.set([]);
-    this.server.set('');
-
-    // Danh sách server là tùy chọn, lỗi thì dùng server mặc định.
-    try {
-      const res = await firstValueFrom(this.api.getServers(this.media()!.id, provider));
-      this.servers.set(res.servers ?? []);
-      this.server.set(res.servers?.[0] ?? '');
-    } catch {
-      /* ignore */
-    }
-
-    await this.loadEpisodes();
+  protected playFirst(): void {
+    const first = this.store.episodes()[0];
+    if (first) this.play(first.episodeNumber);
   }
 
-  async selectServer(server: string): Promise<void> {
-    this.server.set(server);
-    await this.loadEpisodes();
+  protected onPlayerError(message: string): void {
+    this.store.onPlayerError(message, this.player()?.currentTime() ?? 0);
   }
 
-  async loadEpisodes(): Promise<void> {
-    this.episodesLoading.set(true);
-    this.episodesError.set(null);
-    this.episodes.set([]);
-
-    try {
-      const res = await firstValueFrom(
-        this.api.getEpisodes(this.media()!.id, this.provider(), this.server() || undefined),
-      );
-      this.episodes.set(res.episodes ?? []);
-    } catch (err) {
-      this.episodesError.set(errorMessage(err));
-    } finally {
-      this.episodesLoading.set(false);
-    }
+  protected isCurrent(episodeNumber: string): boolean {
+    return sameEpisode(episodeNumber, this.store.episodeNumber());
   }
 
-  async play(ep: Episode): Promise<void> {
-    this.resetPlayback();
-    this.currentEpisode.set(ep);
-    this.sourceLoading.set(true);
-
-    try {
-      const src = await firstValueFrom(
-        this.api.getSource(ep.episodeId, this.provider(), this.server() || ep.server),
-      );
-      this.source.set(src);
-    } catch (err) {
-      this.playerError.set(errorMessage(err));
-    } finally {
-      this.sourceLoading.set(false);
-    }
-  }
-
-  onPlaybackError(message: string): void {
-    this.playerError.set(
-      this.useProxy() ? message : `${message}. Thử tick “Luôn dùng proxy” rồi bấm lại tập.`,
-    );
-  }
-
-  toggleProxy(event: Event): void {
-    this.forceProxy.set((event.target as HTMLInputElement).checked);
-    this.playerError.set(null);
-  }
-
-  private resetPlayback(): void {
-    this.currentEpisode.set(null);
-    this.source.set(null);
-    this.playerError.set(null);
+  protected onEpisodeQuery(event: Event): void {
+    this.episodeQuery.set((event.target as HTMLInputElement).value);
   }
 }
+
