@@ -197,3 +197,21 @@ input, select, textarea, button { font: inherit; color: inherit; }
 }
 
 html, body { overflow-x: clip; }
+
+// =====================================================================
+//  Input – `<input class="ui-input">` (form admin)
+// =====================================================================
+.ui-input {
+  width: 100%; height: 40px; padding: 0 12px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  font-size: 14px; outline: none;
+  transition: border-color var(--dur), box-shadow var(--dur);
+  &::placeholder { color: var(--muted); }
+  &:focus { border-color: var(--accent); box-shadow: var(--ring); }
+  &:disabled { opacity: .6; }
+}
+.ui-field {
+  display: grid; gap: 6px;
+  > span { font-size: 12px; font-weight: 600; color: var(--text-2); }
+}

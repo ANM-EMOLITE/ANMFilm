@@ -1,0 +1,173 @@
+<header class="page-head">
+  <div>
+    <h1>Tổng quan &amp; đồng bộ</h1>
+    <p class="text-muted">Lấy danh sách phim từ AniList + AniMapper về DB. Chỉ chạy khi bấm <b>Đồng bộ</b>.</p>
+  </div>
+  <button uiBtn variant="secondary" size="sm" (click)="refresh()"><ui-icon name="refresh" [size]="14" /> Làm mới</button>
+</header>
+
+@if (loadError()) {
+  <ui-empty-state icon="alert" tone="danger" heading="Không tải được dữ liệu" [message]="loadError()">
+    <button uiBtn (click)="refresh()"><ui-icon name="refresh" [size]="16" /> Thử lại</button>
+  </ui-empty-state>
+} @else {
+  <!-- ===== Thống kê ===== -->
+  <section class="stats">
+    @if (stats(); as s) {
+      <a class="card stat" routerLink="/admin/anime">
+        <span class="label"><ui-icon name="film" [size]="15" /> Tổng số phim</span>
+        <b>{{ s.totalAnime | number }}</b>
+      </a>
+      <a class="card stat" routerLink="/admin/anime" [queryParams]="{ stream: 'yes' }">
+        <span class="label"><ui-icon name="play" [size]="15" /> Có nguồn phát</span>
+        <b class="ok">{{ s.withStream | number }}</b>
+        <small>{{ s.totalAnime - s.withStream | number }} phim chưa có nguồn</small>
+      </a>
+      <a class="card stat" routerLink="/admin/anime" [queryParams]="{ hidden: 'yes' }">
+        <span class="label"><ui-icon name="eye-off" [size]="15" /> Đang ẩn</span>
+        <b>{{ s.hidden | number }}</b>
+      </a>
+      <a class="card stat" routerLink="/admin/anime" [queryParams]="{ health: 'broken' }">
+        <span class="label"><ui-icon name="alert" [size]="15" /> Có nguồn lỗi</span>
+        <b [class.warn]="s.broken > 0">{{ s.broken | number }}</b>
+        <small>Bấm để xem và bật/tắt nguồn</small>
+      </a>
+      <div class="card stat">
+        <span class="label"><ui-icon name="clock" [size]="15" /> Đồng bộ gần nhất</span>
+        @if (s.lastJob; as j) {
+          <b class="small">{{ (j.finishedAt ?? j.createdAt) | date: 'HH:mm dd/MM' }}</b>
+          <small><ui-badge [tone]="status[j.status].tone" dot>{{ status[j.status].label }}</ui-badge></small>
+        } @else {
+          <b class="small">Chưa có</b>
+        }
+      </div>
+    } @else {
+      @for (i of [1, 2, 3, 4]; track i) { <ui-skeleton height="104px" radius="var(--radius-lg)" /> }
+    }
+  </section>
+
+  <!-- ===== Đồng bộ ===== -->
+  <section class="card panel">
+    <div class="panel-head">
+      <h2 class="section-title">Đồng bộ</h2>
+      <div class="quick">
+        <button uiBtn variant="ghost" size="sm" [disabled]="running()" (click)="selectAll(true)">Chọn tất cả</button>
+        <button uiBtn variant="ghost" size="sm" [disabled]="running()" (click)="selectAll(false)">Bỏ chọn</button>
+      </div>
+    </div>
+
+    <div class="chips">
+      @for (t of tabs; track t.id) {
+        <button type="button" class="chip" [class.on]="selected().has(t.id)" [disabled]="running()"
+                [attr.aria-pressed]="selected().has(t.id)" (click)="toggle(t.id)">
+          <span class="box">@if (selected().has(t.id)) { <ui-icon name="check" [size]="12" [stroke]="3" /> }</span>
+          <span>{{ t.label }}<small>{{ t.hint }}</small></span>
+        </button>
+      }
+    </div>
+
+    <div class="actions">
+      <ui-switch [(checked)]="updateExisting" [disabled]="running()"
+                 label="Cập nhật cả phim đã có"
+                 hint="Tắt: phim đã có trong DB sẽ được bỏ qua (giữ nguyên dữ liệu, chạy nhanh hơn)" />
+
+      <button uiBtn variant="secondary" size="lg" [disabled]="starting() || running() || selected().size === 0"
+              title="Thử mở link của từng nguồn: nguồn lỗi tự tắt, phim không còn nguồn chạy được thì tự ẩn"
+              (click)="startCheck()">
+        <ui-icon name="shield" [size]="16" /> Kiểm tra nguồn phát
+      </button>
+      <button uiBtn size="lg" [disabled]="starting() || running() || selected().size === 0" (click)="start()">
+        @if (starting() || running()) { <ui-spinner [size]="16" /> Đang đồng bộ… } @else { <ui-icon name="refresh" [size]="16" /> Đồng bộ }
+      </button>
+    </div>
+
+    @if (current(); as job) {
+      <div class="job" [class]="'job ' + job.status.toLowerCase()">
+        <div class="job-head">
+          <ui-badge [tone]="status[job.status].tone" dot>{{ status[job.status].label }}</ui-badge>
+          <span class="progress">{{ job.progress }}</span>
+          <span class="text-muted">{{ duration(job) }}</span>
+        </div>
+        @if (job.error) { <p class="job-error"><ui-icon name="alert" [size]="14" /> {{ job.error }}</p> }
+        @if (job.status === 'RUNNING' || job.status === 'QUEUED') { <div class="bar"><span></span></div> }
+        <div class="counts">
+          @if (job.kind === 'HEALTH') {
+            <span class="kind"><ui-icon name="shield" [size]="13" /> {{ job.target ?? 'Kiểm tra nguồn phát' }}</span>
+            <span><b class="ok">{{ job.added }}</b> chạy tốt</span>
+            <span><b class="warn">{{ job.updated }}</b> có nguồn lỗi</span>
+            <span><b>{{ job.skipped }}</b> đã kiểm tra trong 24h</span>
+            <span><b>{{ job.processed }}</b> đã xử lý</span>
+          } @else if (job.kind === 'STREAMS') {
+            <span class="kind"><ui-icon name="download" [size]="13" /> {{ job.target }}</span>
+            <span><b class="ok">{{ job.added }}</b> tập lưu mới</span>
+            @if (job.updateExisting) { <span><b>{{ job.updated }}</b> lấy lại</span> }
+            <span><b class="warn">{{ job.skipped }}</b> tập đã có sẵn</span>
+            <span><b>{{ job.processed }}</b> tập đã xử lý</span>
+          } @else {
+            <span><b class="ok">{{ job.added }}</b> tạo mới</span>
+            @if (job.updateExisting) { <span><b>{{ job.updated }}</b> cập nhật</span> }
+            <span><b class="warn">{{ job.skipped }}</b> đã tồn tại (bỏ qua)</span>
+            <span><b>{{ job.processed }}</b> đã xử lý</span>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- ===== Danh sách đã đồng bộ ===== -->
+  @if (stats()?.lists?.length) {
+    <section class="card panel">
+      <h2 class="section-title">Danh sách trên trang chủ</h2>
+      <div class="lists">
+        @for (l of stats()!.lists; track l.key) {
+          <a class="list" routerLink="/admin/anime" [queryParams]="{ list: l.key }">
+            <span>{{ l.label }}</span>
+            <b>{{ l.itemCount }}</b>
+            <small>{{ l.syncedAt | date: 'HH:mm dd/MM' }}</small>
+          </a>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- ===== Lịch sử ===== -->
+  <section class="card panel">
+    <h2 class="section-title">Lịch sử đồng bộ</h2>
+    <ui-table [columns]="jobColumns" [rows]="jobs()" [trackBy]="trackJob" compact emptyText="Chưa đồng bộ lần nào">
+      <ng-template uiCell="createdAt" let-row>{{ row.createdAt | date: 'HH:mm:ss dd/MM' }}</ng-template>
+      <ng-template uiCell="status" let-row>
+        <ui-badge [tone]="statusOf(row.status).tone" dot>{{ statusOf(row.status).label }}</ui-badge>
+      </ng-template>
+      <ng-template uiCell="lists" let-row>
+        @if (row.kind === 'HEALTH') {
+          <span class="kind"><ui-icon name="shield" [size]="13" /> Kiểm tra nguồn:</span> {{ row.target ?? tabLabels(row.lists) }}
+          @if (row.updateExisting && !row.target) { <ui-badge tone="info">kiểm tra lại hết</ui-badge> }
+        } @else if (row.kind === 'STREAMS') {
+          <span class="kind"><ui-icon name="download" [size]="13" /> Lưu nguồn phát:</span> {{ row.target }}
+          <span class="text-muted">({{ row.lists.join(', ') }})</span>
+          @if (row.updateExisting) { <ui-badge tone="info">lấy lại</ui-badge> }
+        } @else {
+          {{ tabLabels(row.lists) }}
+          @if (row.updateExisting) { <ui-badge tone="info">cập nhật</ui-badge> }
+        }
+      </ng-template>
+      <ng-template uiCell="result" let-row>
+        @if (row.status === 'FAILED') {
+          <span class="text-danger">{{ row.error }}</span>
+        } @else {
+          @if (row.kind === 'HEALTH') {
+            <span class="ok">{{ row.added }} chạy tốt</span>
+            · <span class="warn">{{ row.updated }} có nguồn lỗi</span>
+            · {{ row.skipped }} bỏ qua
+          } @else {
+            <span class="ok">+{{ row.added }} {{ row.kind === 'STREAMS' ? 'tập' : 'mới' }}</span>
+            @if (row.updated) { · {{ row.updated }} {{ row.kind === 'STREAMS' ? 'lấy lại' : 'cập nhật' }} }
+            · {{ row.skipped }} {{ row.kind === 'STREAMS' ? 'có sẵn' : 'bỏ qua' }}
+          }
+          <span class="text-muted">· {{ duration(row) }}</span>
+          @if (row.error) { <div class="warn small-text">{{ row.error }}</div> }
+        }
+      </ng-template>
+    </ui-table>
+  </section>
+}

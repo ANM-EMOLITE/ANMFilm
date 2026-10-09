@@ -1,29 +1,33 @@
-<header class="header" [class.scrolled]="scrolled()">
-  <div class="container bar">
-    <a class="brand" routerLink="/" aria-label="Trang chủ">
-      <span class="logo"><ui-icon name="play" [size]="16" /></span>
-      <span class="brand-text">Anime<b>Stream</b></span>
-    </a>
+@if (!isAdmin()) {
+  <header class="header" [class.scrolled]="scrolled()">
+    <div class="container bar">
+      <a class="brand" routerLink="/" aria-label="Trang chủ">
+        <span class="logo"><ui-icon name="play" [size]="16" /></span>
+        <span class="brand-text">Anime<b>Stream</b></span>
+      </a>
 
-    <nav class="nav">
-      <a routerLink="/" [queryParams]="{ tab: 'trending' }" routerLinkActive="active">Thịnh hành</a>
-      <a routerLink="/" [queryParams]="{ tab: 'season' }" routerLinkActive="active">Theo mùa</a>
-      <a routerLink="/" [queryParams]="{ tab: 'movie' }" routerLinkActive="active">Phim lẻ</a>
-    </nav>
+      <nav class="nav">
+        <a routerLink="/" [queryParams]="{ tab: 'trending' }" routerLinkActive="active">Thịnh hành</a>
+        <a routerLink="/" [queryParams]="{ tab: 'season' }" routerLinkActive="active">Theo mùa</a>
+        <a routerLink="/" [queryParams]="{ tab: 'movie' }" routerLinkActive="active">Phim lẻ</a>
+      </nav>
 
-    <app-search-box class="search" />
-  </div>
-</header>
+      <app-search-box class="search" />
+    </div>
+  </header>
+}
 
 <main>
   <router-outlet />
 </main>
 
-<footer class="footer">
-  <div class="container">
-    <span class="brand-text">Anime<b>Stream</b></span>
-    <span class="text-muted">Phím tắt <kbd>/</kbd> để tìm kiếm</span>
-  </div>
-</footer>
+@if (!isAdmin()) {
+  <footer class="footer">
+    <div class="container">
+      <span class="brand-text">Anime<b>Stream</b></span>
+      <span class="text-muted">Phím tắt <kbd>/</kbd> để tìm kiếm</span>
+    </div>
+  </footer>
+}
 
 <ui-toaster />

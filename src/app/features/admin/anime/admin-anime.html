@@ -1,0 +1,131 @@
+<header class="page-head">
+  <div>
+    <h1>Quản lý phim</h1>
+    <p class="text-muted">
+      @if (data(); as d) { {{ d.total }} phim · } Phim bị ẩn sẽ không xuất hiện ở trang chủ, tìm kiếm và trang xem.
+    </p>
+  </div>
+
+  <form class="add" (ngSubmit)="addById()">
+    <input class="ui-input" name="addId" inputmode="numeric" placeholder="ID AniList, vd: 154587"
+           [(ngModel)]="addId" [disabled]="adding()" />
+    <button uiBtn type="submit" [disabled]="adding() || !addId">
+      @if (adding()) { <ui-spinner [size]="14" /> } @else { <ui-icon name="plus" [size]="16" /> } Thêm phim
+    </button>
+  </form>
+</header>
+
+<!-- ===== Bộ lọc ===== -->
+<div class="filters">
+  <div class="search">
+    <ui-icon name="search" [size]="16" />
+    <input class="ui-input" type="search" placeholder="Tìm theo tên (Anh, Nhật, Việt…) hoặc ID"
+           [(ngModel)]="searchText" (ngModelChange)="onSearch($event)" />
+  </div>
+  <ui-dropdown [options]="listOptions()" [value]="filters().list" [searchable]="true"
+               (changed)="setFilter({ list: $event })" />
+  <ui-dropdown [options]="streamOptions" [value]="filters().stream" (changed)="setFilter({ stream: $event })" />
+  <ui-dropdown [options]="hiddenOptions" [value]="filters().hidden" (changed)="setFilter({ hidden: $event })" />
+  <ui-dropdown [options]="healthOptions" [value]="filters().health" (changed)="setFilter({ health: $event })" />
+  @if (hasFilters()) {
+    <button uiBtn variant="ghost" size="sm" (click)="clearFilters()"><ui-icon name="x" [size]="14" /> Xóa lọc</button>
+  }
+</div>
+
+<!-- ===== Bảng ===== -->
+@if (error()) {
+  <ui-empty-state icon="alert" tone="danger" heading="Không tải được danh sách" [message]="error()" />
+} @else if (!loading() && data()?.total === 0) {
+  @if (hasFilters()) {
+    <ui-empty-state icon="search" heading="Không có phim nào khớp bộ lọc">
+      <button uiBtn variant="secondary" (click)="clearFilters()">Xóa bộ lọc</button>
+    </ui-empty-state>
+  } @else {
+    <ui-empty-state icon="film" heading="Danh mục đang trống" message="Vào trang Tổng quan và bấm Đồng bộ để lấy phim về.">
+      <a uiBtn routerLink="/admin"><ui-icon name="refresh" [size]="16" /> Đi tới đồng bộ</a>
+    </ui-empty-state>
+  }
+} @else {
+  <div class="table" [class.loading]="loading()">
+    <ui-table [columns]="columns" [rows]="data()?.items ?? []" [trackBy]="trackAnime()"
+              emptyText="Đang tải…">
+      <ng-template uiCell="title" let-row>
+        <div class="title-cell" [class.dim]="row.isHidden">
+          <img [src]="row.cover" alt="" loading="lazy" />
+          <div>
+            <a class="name" [routerLink]="['/anime', row.id]" target="_blank">{{ row.title }}</a>
+            <small>#{{ row.id }} · đồng bộ {{ row.syncedAt | date: 'HH:mm dd/MM' }}</small>
+            @if (prefetching()?.id === row.id) {
+              <small class="prefetch"><ui-spinner [size]="10" /> {{ prefetching()!.kind === 'HEALTH' ? 'Kiểm tra nguồn' : 'Lưu nguồn phát' }} · {{ prefetching()!.progress }}</small>
+            }
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template uiCell="info" let-row>
+        <div class="info">
+          <span>{{ row.format }}@if (row.seasonYear) { · {{ row.seasonYear }} }@if (row.totalUnits) { · {{ row.totalUnits }} tập }</span>
+          @if (row.status) {
+            <ui-badge [tone]="row.status === 'RELEASING' ? 'success' : 'neutral'">{{ statusLabel(row.status) }}</ui-badge>
+          }
+        </div>
+      </ng-template>
+
+      <ng-template uiCell="providers" let-row>
+        <div class="providers">
+          @for (p of row.providers; track p) {
+            @let s = providerStatus(row, p);
+            <button type="button" class="prov"
+                    [class.ok]="s?.status === 'OK' && !s?.isDisabled"
+                    [class.broken]="s?.status === 'BROKEN'"
+                    [class.off]="s?.isDisabled"
+                    [disabled]="busy().has(row.id)"
+                    [title]="providerTitle(s)"
+                    (click)="toggleProvider(row, p, !s?.isDisabled)">
+              <span class="dot"></span>{{ p }}
+              @if (s?.isDisabled) { <ui-icon name="eye-off" [size]="11" /> }
+            </button>
+          } @empty {
+            <ui-badge tone="warning">Chưa có nguồn</ui-badge>
+          }
+          @if (row.autoHidden) { <ui-badge tone="danger">Tự ẩn: mọi nguồn lỗi</ui-badge> }
+        </div>
+      </ng-template>
+
+      <ng-template uiCell="visible" let-row>
+        <ui-switch [checked]="!row.isHidden" [disabled]="busy().has(row.id)"
+                   (checkedChange)="setVisible(row, $event)"
+                   [attr.title]="row.isHidden ? 'Đang ẩn – bấm để hiện' : 'Đang hiện – bấm để ẩn'" />
+      </ng-template>
+
+      <ng-template uiCell="actions" let-row>
+        <button uiBtn variant="ghost" size="sm" iconOnly [disabled]="!row.hasStream || !!prefetching()"
+                title="Kiểm tra nguồn phát: nguồn lỗi tự tắt, mọi nguồn lỗi thì tự ẩn phim"
+                aria-label="Kiểm tra nguồn phát" (click)="check(row)">
+          @if (prefetching()?.id === row.id && prefetching()!.kind === 'HEALTH') { <ui-spinner [size]="14" /> } @else { <ui-icon name="shield" [size]="15" /> }
+        </button>
+        <button uiBtn variant="ghost" size="sm" iconOnly [disabled]="!row.hasStream || !!prefetching()"
+                [title]="row.hasStream ? 'Lưu sẵn link phát mọi tập vào DB (xem không cần chờ AniMapper)' : 'Phim chưa có nguồn phát'"
+                aria-label="Lưu sẵn nguồn phát" (click)="prefetch(row)">
+          @if (prefetching()?.id === row.id && prefetching()!.kind === 'STREAMS') { <ui-spinner [size]="14" /> } @else { <ui-icon name="download" [size]="15" /> }
+        </button>
+        <button uiBtn variant="ghost" size="sm" iconOnly [disabled]="busy().has(row.id)"
+                title="Lấy lại dữ liệu từ AniMapper" aria-label="Đồng bộ lại" (click)="resync(row)">
+          @if (busy().has(row.id)) { <ui-spinner [size]="14" /> } @else { <ui-icon name="refresh" [size]="15" /> }
+        </button>
+      </ng-template>
+    </ui-table>
+  </div>
+
+  @if (totalPages() > 1) {
+    <nav class="pager" aria-label="Phân trang">
+      <button uiBtn variant="secondary" size="sm" [disabled]="filters().page <= 1" (click)="goTo(filters().page - 1)">
+        <ui-icon name="chevron-left" [size]="14" /> Trước
+      </button>
+      <span>Trang <b>{{ filters().page }}</b> / {{ totalPages() }}</span>
+      <button uiBtn variant="secondary" size="sm" [disabled]="filters().page >= totalPages()" (click)="goTo(filters().page + 1)">
+        Sau <ui-icon name="chevron-right" [size]="14" />
+      </button>
+    </nav>
+  }
+}
