@@ -21,6 +21,33 @@
 }
 
 <div class="container page">
+  <!-- ===== Dải "đang chiếu mùa này" (mọi tab, trừ khi tìm kiếm) ===== -->
+  @if (!state().q && airing().length) {
+    <section class="rail">
+      <div class="rail-head">
+        <h2 class="section-title"><ui-icon name="tv" [size]="18" /> Đang chiếu · {{ currentSeasonTitle() }}</h2>
+        <button type="button" class="rail-all" (click)="selectTab('AIRING')">
+          Xem tất cả <ui-icon name="arrow-right" [size]="14" />
+        </button>
+      </div>
+      <div class="rail-track">
+        @for (m of airing(); track m.id) {
+          <a class="rail-card" [routerLink]="['/anime', m.id]" [title]="pickTitle(m.titles)">
+            <span class="rail-poster">
+              @if (cover(m)) {
+                <img [src]="cover(m)" [alt]="pickTitle(m.titles)" loading="lazy" />
+              } @else {
+                <span class="ph"><ui-icon name="film" [size]="20" /></span>
+              }
+              <span class="rail-badge">Đang chiếu</span>
+            </span>
+            <span class="rail-title">{{ pickTitle(m.titles) }}</span>
+          </a>
+        }
+      </div>
+    </section>
+  }
+
   <!-- ===== Thanh điều hướng ===== -->
   @if (state().q) {
     <header class="page-head">

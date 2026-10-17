@@ -86,6 +86,13 @@ export class SearchPage {
   readonly activeTab = computed(() => TABS.find(t => t.id === this.state().tab) ?? TABS[0]);
   readonly seasonTitle = computed(() => `Mùa ${seasonLabel(this.state().season)} ${this.state().year}`);
 
+  /** Dải "đang chiếu mùa này" hiện ở đầu mọi tab (trừ khi đang tìm kiếm). Tải 1 lần. */
+  readonly airing = signal<MediaSearchResult[]>([]);
+  readonly currentSeasonTitle = computed(() => {
+    const { season, year } = currentSeason();
+    return `Mùa ${seasonLabel(season)} ${year}`;
+  });
+
   /** Phim nổi bật (hero) – phim đầu tiên của tab Thịnh hành. */
   readonly featured = computed(() => {
     const s = this.state();
@@ -113,6 +120,21 @@ export class SearchPage {
         takeUntilDestroyed(),
       )
       .subscribe(res => this.applyFirstPage(res));
+
+    // Dải "đang chiếu" lấy từ tab AIRING, tải một lần.
+    this.api
+      .browse({ tab: 'AIRING', limit: 24, offset: 0 })
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(),
+      )
+      .subscribe(res => this.airing.set(res?.results ?? []));
+  }
+
+  /** Ảnh bìa cho thẻ trong dải ngang. */
+  cover(m: MediaSearchResult): string {
+    const img = m.images;
+    return img?.coverLg || img?.coverXl || img?.coverMd || '';
   }
 
   retry(): void {
