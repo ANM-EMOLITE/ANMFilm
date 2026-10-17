@@ -3,12 +3,13 @@ import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
 import { adminAuthInterceptor } from './core/auth/admin-auth';
+import { userAuthInterceptor } from './core/auth/user-auth';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withFetch(), withInterceptors([adminAuthInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([adminAuthInterceptor, userAuthInterceptor])),
   ],
 };

@@ -13,6 +13,18 @@
       </nav>
 
       <app-search-box class="search" />
+
+      @if (auth.isLoggedIn()) {
+        <a class="account" routerLink="/account" title="Tài khoản của tôi">
+          <ui-icon name="user" [size]="16" />
+          <span class="account-name">{{ accountName() }}</span>
+        </a>
+      } @else {
+        <a class="account login" routerLink="/login">
+          <ui-icon name="user" [size]="16" />
+          <span class="account-name">Đăng nhập</span>
+        </a>
+      }
     </div>
   </header>
 }

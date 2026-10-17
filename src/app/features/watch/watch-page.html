@@ -77,6 +77,12 @@
             </h1>
           </div>
           <div class="now-actions">
+            <button uiBtn [variant]="saved() ? 'primary' : 'secondary'" size="sm" [disabled]="saving()"
+                    [title]="saved() ? 'Bỏ khỏi danh sách đã lưu' : 'Lưu phim để xem lại sau'" (click)="toggleSave()">
+              @if (saving()) { <ui-spinner [size]="16" /> }
+              @else { <ui-icon [name]="saved() ? 'check' : 'plus'" [size]="16" /> }
+              {{ saved() ? 'Đã lưu' : 'Lưu' }}
+            </button>
             <button uiBtn variant="secondary" size="sm" [disabled]="!store.hasPrev()" (click)="store.playPrev()">
               <ui-icon name="chevron-left" [size]="16" /> Tập trước
             </button>

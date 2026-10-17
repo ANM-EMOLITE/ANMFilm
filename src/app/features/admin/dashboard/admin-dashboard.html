@@ -87,6 +87,11 @@
           <ui-badge [tone]="status[job.status].tone" dot>{{ status[job.status].label }}</ui-badge>
           <span class="progress">{{ job.progress }}</span>
           <span class="text-muted">{{ duration(job) }}</span>
+          @if (job.status === 'RUNNING' || job.status === 'QUEUED') {
+            <button uiBtn variant="ghost" size="sm" class="cancel-btn" [disabled]="canceling()" (click)="cancel()">
+              @if (canceling()) { <ui-spinner [size]="14" /> Đang dừng… } @else { <ui-icon name="x" [size]="14" /> Dừng }
+            </button>
+          }
         </div>
         @if (job.error) { <p class="job-error"><ui-icon name="alert" [size]="14" /> {{ job.error }}</p> }
         @if (job.status === 'RUNNING' || job.status === 'QUEUED') { <div class="bar"><span></span></div> }

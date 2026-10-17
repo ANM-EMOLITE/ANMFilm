@@ -69,6 +69,11 @@ export class AdminApi {
     return this.wrap(this.http.get<SyncJob>(`${this.base}/sync/jobs/${id}`));
   }
 
+  /** Dừng job đang chờ hoặc đang chạy. */
+  cancelJob(id: string): Observable<SyncJob> {
+    return this.wrap(this.http.post<SyncJob>(`${this.base}/sync/jobs/${id}/cancel`, {}));
+  }
+
   private wrap<T>(source: Observable<T>): Observable<T> {
     return source.pipe(
       catchError((err: HttpErrorResponse) =>

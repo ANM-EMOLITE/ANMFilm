@@ -36,6 +36,7 @@ const STATUS: Record<SyncJobStatus, { label: string; tone: BadgeTone }> = {
   RUNNING: { label: 'Đang chạy', tone: 'warning' },
   SUCCEEDED: { label: 'Thành công', tone: 'success' },
   FAILED: { label: 'Thất bại', tone: 'danger' },
+  CANCELED: { label: 'Đã huỷ', tone: 'neutral' },
 };
 
 const isActive = (job: SyncJob | null | undefined) => job?.status === 'QUEUED' || job?.status === 'RUNNING';
@@ -65,6 +66,7 @@ export class AdminDashboard {
   protected readonly selected = signal<Set<BrowseTab>>(new Set(TABS.map(t => t.id)));
   protected readonly updateExisting = signal(false);
   protected readonly starting = signal(false);
+  protected readonly canceling = signal(false);
 
   /** Job đang chạy (hoặc vừa chạy xong trong phiên này). */
   protected readonly current = signal<SyncJob | null>(null);
@@ -151,6 +153,21 @@ export class AdminDashboard {
     });
   }
 
+  /** Dừng job đang chạy / đang chờ. Polling sẽ tự cập nhật trạng thái "Đã huỷ". */
+  protected cancel(): void {
+    const job = this.current();
+    if (!job || !isActive(job) || this.canceling()) return;
+
+    this.canceling.set(true);
+    this.api.cancelJob(job.id).subscribe({
+      next: () => this.canceling.set(false),
+      error: (message: string) => {
+        this.canceling.set(false);
+        this.toast.show('danger', 'Không dừng được', message);
+      },
+    });
+  }
+
   protected tabLabels(lists: string[]): string {
     return lists.map(id => TABS.find(t => t.id === id)?.label ?? id).join(', ');
   }
@@ -188,7 +205,13 @@ export class AdminDashboard {
 
   private finished(job: SyncJob): void {
     this.polling = undefined;
+    this.canceling.set(false);
     this.refresh();
+
+    if (job.status === 'CANCELED') {
+      this.toast.show('info', 'Đã dừng', 'Job đã được huỷ.', 6000);
+      return;
+    }
 
     if (job.status === 'FAILED') {
       this.toast.show('danger', 'Đồng bộ thất bại', job.error ?? undefined, 8000);

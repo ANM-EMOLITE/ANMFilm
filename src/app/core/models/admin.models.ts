@@ -4,7 +4,7 @@ export interface LoginResponse {
   username: string;
 }
 
-export type SyncJobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+export type SyncJobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
 
 export interface SyncJob {
   id: string;

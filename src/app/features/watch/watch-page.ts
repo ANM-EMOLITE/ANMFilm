@@ -1,8 +1,10 @@
 import { Component, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { UserAuth } from '@core/auth/user-auth';
+import { UserApi } from '@core/services/user-api';
 import { formatLabel, pickDescription, seasonLabel, statusLabel } from '@core/utils/media.utils';
 import { VideoPlayer } from '@shared/components/video-player/video-player';
-import { DropdownOption, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner } from '@shared/ui';
+import { DropdownOption, ToastService, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner } from '@shared/ui';
 import { WatchStore, sameEpisode } from './watch-store';
 
 /** Danh sách tập dài thì chia nhóm (1–100, 101–200…). */
@@ -18,10 +20,28 @@ const RANGE_SIZE = 100;
 export class WatchPage {
   protected readonly store = inject(WatchStore);
   private readonly router = inject(Router);
+  protected readonly auth = inject(UserAuth);
+  private readonly userApi = inject(UserApi);
+  private readonly toast = inject(ToastService);
 
   /** Route param :id và query ?ep= (withComponentInputBinding). */
   readonly id = input.required<string>();
   readonly ep = input<string>();
+
+  // ---------- Thư viện người xem ----------
+  private readonly savedIds = signal<Set<number>>(new Set());
+  protected readonly saving = signal(false);
+  protected readonly saved = computed(() => this.savedIds().has(this.animeId()));
+  private readonly recorded = new Set<string>();
+
+  private animeId(): number {
+    return Number(this.id());
+  }
+
+  private cover(): string | null {
+    const images = this.store.media()?.images;
+    return images?.coverLg || images?.coverXl || images?.bannerUrl || null;
+  }
 
   protected readonly player = viewChild(VideoPlayer);
   private readonly episodeScroll = viewChild<UiScrollArea>('episodeScroll');
@@ -99,6 +119,77 @@ export class WatchPage {
         if (el) this.episodeScroll()?.scrollIntoView(el);
       });
     });
+
+    // Nạp danh sách phim đã lưu để hiện trạng thái nút "Lưu".
+    if (this.auth.isLoggedIn()) {
+      this.userApi.watchlistIds().subscribe({
+        next: ids => this.savedIds.set(new Set(ids)),
+        error: () => {},
+      });
+    }
+
+    // Ghi nhận lịch sử xem khi tập bắt đầu phát (mỗi tập chỉ ghi 1 lần/phiên).
+    effect(() => {
+      const phase = this.store.phase();
+      const ep = this.store.episodeNumber();
+      if (phase !== 'playing' || !ep || !this.auth.isLoggedIn()) return;
+
+      const key = `${this.animeId()}|${ep}`;
+      if (this.recorded.has(key)) return;
+      this.recorded.add(key);
+
+      untracked(() =>
+        this.userApi
+          .recordWatch({
+            animeId: this.animeId(),
+            episode: Number.isFinite(Number(ep)) ? Number(ep) : null,
+            title: this.store.title(),
+            cover: this.cover(),
+          })
+          .subscribe({ error: () => this.recorded.delete(key) }),
+      );
+    });
+  }
+
+  /** Lưu / bỏ lưu phim hiện tại. Chưa đăng nhập → chuyển tới trang đăng nhập. */
+  protected toggleSave(): void {
+    if (!this.auth.isLoggedIn()) {
+      void this.router.navigate(['/login'], { queryParams: { returnUrl: this.router.url } });
+      return;
+    }
+    if (this.saving()) return;
+
+    const id = this.animeId();
+    this.saving.set(true);
+
+    if (this.saved()) {
+      this.userApi.removeWatchlist(id).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.savedIds.update(set => {
+            const next = new Set(set);
+            next.delete(id);
+            return next;
+          });
+        },
+        error: (message: string) => {
+          this.saving.set(false);
+          this.toast.show('danger', 'Không bỏ lưu được', message);
+        },
+      });
+    } else {
+      this.userApi.addWatchlist({ animeId: id, title: this.store.title(), cover: this.cover() }).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.savedIds.update(set => new Set(set).add(id));
+          this.toast.show('success', 'Đã lưu', 'Phim đã được thêm vào danh sách của bạn.');
+        },
+        error: (message: string) => {
+          this.saving.set(false);
+          this.toast.show('danger', 'Không lưu được', message);
+        },
+      });
+    }
   }
 
   protected play(episodeNumber: string): void {

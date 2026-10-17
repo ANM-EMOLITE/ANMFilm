@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth/admin-auth';
+import { userGuard } from './core/auth/user-auth';
 
 export const routes: Routes = [
   {
@@ -11,6 +12,22 @@ export const routes: Routes = [
     path: 'anime/:id',
     title: 'Xem anime',
     loadComponent: () => import('./features/watch/watch-page').then(m => m.WatchPage),
+  },
+  {
+    path: 'login',
+    title: 'Đăng nhập',
+    loadComponent: () => import('./features/account/login/user-login').then(m => m.UserLogin),
+  },
+  {
+    path: 'register',
+    title: 'Đăng ký',
+    loadComponent: () => import('./features/account/register/user-register').then(m => m.UserRegister),
+  },
+  {
+    path: 'account',
+    title: 'Tài khoản',
+    canActivate: [userGuard],
+    loadComponent: () => import('./features/account/account-page').then(m => m.AccountPage),
   },
   {
     path: 'admin/login',

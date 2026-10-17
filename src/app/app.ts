@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
+import { UserAuth } from '@core/auth/user-auth';
 import { SearchBox } from '@shared/components/search-box/search-box';
 import { UiIcon, UiToaster } from '@shared/ui';
 
@@ -14,6 +15,12 @@ import { UiIcon, UiToaster } from '@shared/ui';
 })
 export class App {
   private readonly router = inject(Router);
+
+  protected readonly auth = inject(UserAuth);
+  protected readonly accountName = computed(() => {
+    const u = this.auth.user();
+    return u ? u.displayName || u.username : null;
+  });
 
   protected readonly scrolled = signal(false);
 
