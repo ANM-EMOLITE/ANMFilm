@@ -27,7 +27,20 @@
   <div class="container">
     <!-- ===== Player + danh sách tập ===== -->
     <section class="theater">
-      <div class="player-col">
+        @if (resume(); as r) {
+          <div class="resume-overlay" (click)="dismissResume()">
+            <div class="resume-modal" (click)="$event.stopPropagation()">
+              <button class="resume-close" aria-label="Đóng" (click)="dismissResume()"><ui-icon name="x" [size]="16" /></button>
+              <span class="resume-ic"><ui-icon name="clock" [size]="26" /></span>
+              <h3>Xem tiếp?</h3>
+              <p>Bạn đang xem dở <b>Tập {{ r.episode }}</b> ở <b>{{ formatTime(r.time) }}</b>.</p>
+              <div class="resume-btns">
+                <button uiBtn block (click)="continueResume()"><ui-icon name="play" [size]="16" /> Tiếp tục từ {{ formatTime(r.time) }}</button>
+                <button uiBtn variant="secondary" block (click)="startOver()"><ui-icon name="refresh" [size]="16" /> Xem từ đầu</button>
+              </div>
+            </div>
+          </div>
+        }
         <div class="player">
           @if (store.source(); as src) {
             <app-video-player
@@ -53,10 +66,10 @@
             <div class="screen-overlay poster" [style.background-image]="'url(' + (m.images?.coverXl || m.images?.coverLg) + ')'">
               <div class="start">
                 @if (store.episodes().length) {
-                  <button class="big-play" type="button" aria-label="Phát" (click)="playFirst()">
+                  <button class="big-play" type="button" aria-label="Phát" (click)="startCurrent()">
                     <ui-icon name="play" [size]="34" />
                   </button>
-                  <p>Bắt đầu xem từ <b>Tập {{ store.episodes()[0].episodeNumber }}</b></p>
+                  <p>Phát <b>Tập {{ store.episodeNumber() ?? store.episodes()[0].episodeNumber }}</b></p>
                 } @else {
                   <ui-empty-state icon="tv" heading="Phim chưa có tập để xem" message="Vui lòng quay lại sau." compact>
                     <button uiBtn size="sm" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
@@ -67,83 +80,84 @@
           }
         </div>
 
-        <!-- Thanh dưới player -->
+        <!-- Card đang xem: thông tin + điều khiển + danh sách tập -->
         <div class="now card">
-          <div class="now-title">
-            <span class="eyebrow">Đang xem</span>
-            <h1>
-              {{ store.title() }}
-              @if (store.episodeNumber()) { <span class="ep-label">· Tập {{ store.episodeNumber() }}</span> }
-            </h1>
+          <div class="now-top">
+            <div class="now-title">
+              <span class="eyebrow">Đang xem</span>
+              <h1>
+                {{ store.title() }}
+                @if (store.episodeNumber()) { <span class="ep-label">· Tập {{ store.episodeNumber() }}</span> }
+              </h1>
+            </div>
+            <div class="now-actions">
+              <button uiBtn [variant]="saved() ? 'primary' : 'secondary'" size="sm" [disabled]="saving()"
+                      [title]="saved() ? 'Bỏ khỏi danh sách đã lưu' : 'Lưu phim để xem lại sau'" (click)="toggleSave()">
+                @if (saving()) { <ui-spinner [size]="16" /> }
+                @else { <ui-icon [name]="saved() ? 'check' : 'plus'" [size]="16" /> }
+                {{ saved() ? 'Đã lưu' : 'Lưu' }}
+              </button>
+              @if (downloadUrl(); as url) {
+                <a uiBtn variant="secondary" size="sm" [href]="url" download target="_blank" rel="noopener"
+                   title="Tải tập này về máy">
+                  <ui-icon name="download" [size]="16" /> Tải
+                </a>
+              }
+              <button uiBtn variant="secondary" size="sm" [disabled]="!store.hasPrev()" (click)="goPrev()">
+                <ui-icon name="chevron-left" [size]="16" /> Tập trước
+              </button>
+              <button uiBtn size="sm" [disabled]="!store.hasNext()" (click)="goNext()">
+                Tập sau <ui-icon name="chevron-right" [size]="16" />
+              </button>
+            </div>
           </div>
-          <div class="now-actions">
-            <button uiBtn [variant]="saved() ? 'primary' : 'secondary'" size="sm" [disabled]="saving()"
-                    [title]="saved() ? 'Bỏ khỏi danh sách đã lưu' : 'Lưu phim để xem lại sau'" (click)="toggleSave()">
-              @if (saving()) { <ui-spinner [size]="16" /> }
-              @else { <ui-icon [name]="saved() ? 'check' : 'plus'" [size]="16" /> }
-              {{ saved() ? 'Đã lưu' : 'Lưu' }}
-            </button>
-            <button uiBtn variant="secondary" size="sm" [disabled]="!store.hasPrev()" (click)="store.playPrev()">
-              <ui-icon name="chevron-left" [size]="16" /> Tập trước
-            </button>
-            <button uiBtn size="sm" [disabled]="!store.hasNext()" (click)="store.playNext()">
-              Tập sau <ui-icon name="chevron-right" [size]="16" />
-            </button>
+
+          <!-- Danh sách tập (nằm trong card này, phía dưới) -->
+          <div class="eps">
+            <header class="side-head">
+              <h2 class="section-title">Danh sách tập</h2>
+              @if (store.episodes().length) { <span class="ep-count">{{ store.episodes().length }} tập</span> }
+            </header>
+
+            @if (ranges().length) {
+              <div class="ep-tools">
+                <ui-dropdown class="range" [options]="ranges()" [value]="range()" (changed)="range.set($event)" />
+              </div>
+            }
+
+            @if (store.loadingList() && !store.episodes().length) {
+              <div class="ep-grid">
+                @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) { <ui-skeleton height="38px" /> }
+              </div>
+            } @else if (!store.episodes().length) {
+              <ui-empty-state icon="tv" heading="Chưa có tập phim" message="Phim này hiện chưa có tập để xem." compact>
+                @if (store.hasProviders()) {
+                  <button uiBtn size="sm" variant="secondary" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
+                }
+              </ui-empty-state>
+            } @else {
+              <ui-scroll-area #episodeScroll class="ep-scroll" maxHeight="min(44vh, 380px)">
+                <div class="ep-grid">
+                  @for (e of visibleEpisodes(); track e.episodeId) {
+                    <button
+                      type="button"
+                      class="ep"
+                      [class.active]="isCurrent(e.episodeNumber)"
+                      [title]="'Tập ' + e.episodeNumber"
+                      (click)="requestPlay(e.episodeNumber)">
+                      @if (isCurrent(e.episodeNumber) && store.phase() === 'playing') {
+                        <span class="eq"><i></i><i></i><i></i></span>
+                      }
+                      {{ e.episodeNumber }}
+                    </button>
+                  } @empty {
+                    <p class="text-muted no-ep">Không có tập “{{ episodeQuery() }}”.</p>
+                  }
+                </div>
+              </ui-scroll-area>
+            }
           </div>
         </div>
-      </div>
-
-      <!-- Sidebar -->
-      <aside class="side card">
-        <header class="side-head">
-          <h2 class="section-title">Danh sách tập</h2>
-          @if (store.episodes().length) { <span class="ep-count">{{ store.episodes().length }} tập</span> }
-        </header>
-
-        @if (store.episodes().length > 24) {
-          <div class="ep-tools">
-            @if (ranges().length && !episodeQuery()) {
-              <ui-dropdown class="range" [options]="ranges()" [value]="range()" (changed)="range.set($event)" />
-            }
-            <label class="ep-search">
-              <ui-icon name="search" [size]="14" />
-              <input type="text" inputmode="numeric" placeholder="Tìm tập…" [value]="episodeQuery()" (input)="onEpisodeQuery($event)" />
-            </label>
-          </div>
-        }
-
-        @if (store.loadingList() && !store.episodes().length) {
-          <div class="ep-grid">
-            @for (i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track i) { <ui-skeleton height="38px" /> }
-          </div>
-        } @else if (!store.episodes().length) {
-          <ui-empty-state icon="tv" heading="Chưa có tập phim" message="Phim này hiện chưa có tập để xem." compact>
-            @if (store.hasProviders()) {
-              <button uiBtn size="sm" variant="secondary" (click)="store.retry()"><ui-icon name="refresh" [size]="14" /> Thử lại</button>
-            }
-          </ui-empty-state>
-        } @else {
-          <ui-scroll-area #episodeScroll class="ep-scroll" maxHeight="min(52vh, 460px)">
-            <div class="ep-grid">
-              @for (e of visibleEpisodes(); track e.episodeId) {
-                <button
-                  type="button"
-                  class="ep"
-                  [class.active]="isCurrent(e.episodeNumber)"
-                  [title]="'Tập ' + e.episodeNumber"
-                  (click)="play(e.episodeNumber)">
-                  @if (isCurrent(e.episodeNumber) && store.phase() === 'playing') {
-                    <span class="eq"><i></i><i></i><i></i></span>
-                  }
-                  {{ e.episodeNumber }}
-                </button>
-              } @empty {
-                <p class="text-muted no-ep">Không có tập “{{ episodeQuery() }}”.</p>
-              }
-            </div>
-          </ui-scroll-area>
-        }
-      </aside>
     </section>
 
     <!-- ===== Thông tin phim ===== -->
@@ -174,5 +188,11 @@
         </dl>
       </div>
     </section>
+
+    <!-- ===== Phần liên quan ===== -->
+    <app-related-section [relations]="m.relations ?? []" />
+
+    <!-- ===== Bình luận ===== -->
+    <app-comments-section [animeId]="animeIdNum()" [episode]="currentEpisodeNum()" />
   </div>
 }

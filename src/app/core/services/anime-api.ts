@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, TimeoutError, catchError, map, retry, shareReplay, throwError, timeout, timer } from 'rxjs';
+import { Observable, TimeoutError, catchError, map, of, retry, shareReplay, throwError, timeout, timer } from 'rxjs';
 import { API_BASE_URL } from '../api.config';
 import {
   ApiError,
@@ -8,6 +8,7 @@ import {
   BrowseParams,
   EpisodesResponse,
   MediaDetail,
+  MediaSearchResult,
   MetadataResponse,
   SearchParams,
   SearchResponse,
@@ -72,6 +73,16 @@ export class AnimeApi {
   // ---------- Metadata ----------
   getMetadata(id: number | string): Observable<MediaDetail> {
     return this.get<MetadataResponse>('metadata', { id }, { cacheMs: CACHE_TTL.metadata }).pipe(map(r => r.result));
+  }
+
+  /** Metadata rút gọn của nhiều phim (dùng cho "Phần liên quan"). */
+  metadataBatch(ids: number[]): Observable<MediaSearchResult[]> {
+    if (!ids.length) return of([]);
+    return this.get<{ results: MediaSearchResult[] }>(
+      'metadata/batch',
+      { ids: ids.join(',') },
+      { cacheMs: CACHE_TTL.metadata },
+    ).pipe(map(r => r.results ?? []));
   }
 
   // ---------- Streaming ----------

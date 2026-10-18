@@ -18,7 +18,7 @@ interface NavItem {
     <aside class="side">
       <a class="brand" routerLink="/admin">
         <span class="logo"><ui-icon name="shield" [size]="16" /></span>
-        <span>Admin<b>Stream</b></span>
+        <span>Anime<b>Emolite</b></span>
       </a>
 
       <nav>

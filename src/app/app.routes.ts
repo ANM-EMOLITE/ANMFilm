@@ -5,12 +5,12 @@ import { userGuard } from './core/auth/user-auth';
 export const routes: Routes = [
   {
     path: '',
-    title: 'Anime Stream',
+    title: 'AnimeEmolite',
     loadComponent: () => import('./features/search/search-page').then(m => m.SearchPage),
   },
   {
     path: 'anime/:id',
-    title: 'Xem anime',
+    title: 'AnimeEmolite',
     loadComponent: () => import('./features/watch/watch-page').then(m => m.WatchPage),
   },
   {

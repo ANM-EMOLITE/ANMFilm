@@ -116,6 +116,21 @@ export class WatchStore {
     }
   }
 
+  /**
+   * Chuyển sang một tập nhưng CHƯA phát (hiện poster + nút play để người xem tự bấm).
+   * Dừng video đang chạy và huỷ vòng phát đang diễn ra.
+   */
+  select(episodeNumber: string): void {
+    this.playToken++;
+    this.settle({ ok: false });
+    if (!sameEpisode(episodeNumber, this.episodeNumber())) this.excluded.clear();
+    this.episodeNumber.set(episodeNumber);
+    this.source.set(null);
+    this.playerError.set(null);
+    this.startAt.set(0);
+    this.phase.set('idle');
+  }
+
   /** Bỏ cache và tìm lại từ đầu. */
   async retry(): Promise<void> {
     const token = this.mediaToken;

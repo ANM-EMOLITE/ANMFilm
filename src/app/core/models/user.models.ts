@@ -59,3 +59,25 @@ export interface RecordWatchRequest {
   title?: string | null;
   cover?: string | null;
 }
+
+export interface Comment {
+  id: number;
+  userId: number;
+  userName: string;
+  animeId: number;
+  episode?: number | null;
+  content: string;
+  createdAt: string;
+  editedAt?: string | null;
+}
+
+export interface CommentPage {
+  items: Comment[];
+  total: number;
+}
+
+export interface AddCommentRequest {
+  animeId: number;
+  episode?: number | null;
+  content: string;
+}

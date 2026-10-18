@@ -88,6 +88,12 @@ export interface StreamingProviderMapping {
   mappingType?: string;
 }
 
+export interface MediaRelation {
+  relatedMediaId: number;
+  /** PREQUEL, SEQUEL, SIDE_STORY, PARENT, SPIN_OFF, ALTERNATIVE, ... */
+  relationType?: string;
+}
+
 export interface MediaDetail {
   id: number;
   mediaType: string;
@@ -105,6 +111,7 @@ export interface MediaDetail {
   descriptions?: LocalizedText;
   images?: MediaImages;
   trailer?: { site?: string; trailerId?: string; thumbnail?: string };
+  relations?: MediaRelation[];
   genres?: { id: number; name: string }[];
   studios?: { id: number; name: string; isAnimationStudio: boolean; isMain: boolean }[];
   tags?: { id: number; name: string; description?: string }[];

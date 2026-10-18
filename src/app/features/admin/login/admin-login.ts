@@ -13,7 +13,7 @@ import { UiButton, UiIcon, UiSpinner } from '@shared/ui';
       <form class="card box" (ngSubmit)="submit()">
         <div class="head">
           <span class="logo"><ui-icon name="shield" [size]="22" /></span>
-          <h1>Quản trị Anime<b>Stream</b></h1>
+          <h1>Quản trị Anime<b>Emolite</b></h1>
           <p class="text-muted">Đăng nhập để đồng bộ và quản lý danh mục phim.</p>
         </div>
 

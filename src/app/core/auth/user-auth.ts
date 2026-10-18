@@ -90,7 +90,9 @@ function toMessage(err: HttpErrorResponse): string {
 /** Gắn `Authorization: Bearer` cho API người xem; 401 → đăng xuất. */
 export const userAuthInterceptor: HttpInterceptorFn = (req, next) => {
   const isUserApi = req.url.includes('/api/v1/user/') && !req.url.includes('/api/v1/user/auth/');
-  if (!isUserApi) return next(req);
+  // Bình luận: GET công khai, nhưng gắn token (nếu có) để POST/DELETE hoạt động.
+  const isCommentApi = req.url.includes('/api/v1/comments');
+  if (!isUserApi && !isCommentApi) return next(req);
 
   const auth = inject(UserAuth);
   const router = inject(Router);

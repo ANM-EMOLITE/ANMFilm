@@ -1,3 +1,25 @@
 :host { display: block; }
 .screen { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
 video, iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+/* Nút điều khiển nhanh (nằm trên native controls, phía trên bên phải) */
+.ctl {
+  position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 2;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none;
+}
+.screen:hover .ctl, .ctl:focus-within { opacity: 1; pointer-events: auto; }
+.ctl-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px;
+  border: 0; border-radius: 8px; cursor: pointer;
+  background: rgb(0 0 0 / .6); color: #fff; font-size: 12.5px; font-weight: 600;
+  backdrop-filter: blur(4px);
+  &:hover { background: rgb(0 0 0 / .85); }
+}
+.ctl-btn.skip { background: var(--accent, #ff5c8a); &:hover { filter: brightness(1.1); } }
+/* icon "refresh" làm mũi tên tua: xoay để phân biệt lùi/tiến */
+.ctl-btn:first-child ui-icon { transform: scaleX(-1); }
+
+@media (max-width: 640px) {
+  .ctl { opacity: 1; pointer-events: auto; top: 8px; right: 8px; gap: 6px; }
+  .ctl-btn { padding: 5px 8px; font-size: 11.5px; }
+}

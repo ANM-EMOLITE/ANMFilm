@@ -10,12 +10,8 @@
   mask-image: linear-gradient(to bottom, #000, transparent);
 }
 
-// ---------- Theater ----------
-.theater {
-  display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start;
-  padding-top: 24px;
-}
-@media (max-width: 1100px) { .theater { grid-template-columns: 1fr; } }
+// ---------- Theater (1 cột: video full width, danh sách tập ở dưới) ----------
+.theater { display: grid; gap: 14px; padding-top: 24px; }
 
 .player-col { display: grid; gap: 14px; min-width: 0; }
 
@@ -44,37 +40,28 @@
   &:hover { transform: scale(1.06); box-shadow: 0 0 0 16px rgb(255 92 138 / .12), 0 18px 50px rgb(255 92 138 / .55); }
 }
 
-// ---------- Now playing bar ----------
-.now {
+// ---------- Card đang xem (thông tin + điều khiển + danh sách tập) ----------
+.now { display: grid; gap: 14px; padding: 16px 20px; }
+.now-top {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 16px 20px;
 }
+.eps { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
 .now-title { min-width: 0; display: grid; gap: 6px; }
 .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
 h1 { font-size: clamp(17px, 2vw, 22px); font-weight: 700; }
 .ep-label { color: var(--text-2); font-weight: 600; }
 .now-actions { display: flex; gap: 8px; }
 
-// ---------- Sidebar ----------
-.side {
-  display: flex; flex-direction: column; gap: 14px; padding: 18px;
-  position: sticky; top: calc(var(--header-h) + 16px);
-}
-@media (max-width: 1100px) { .side { position: static; } }
-.skeleton-side { min-height: 400px; }
+// ---------- Skeleton (lúc đang tải) ----------
+.side { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+.skeleton-side { min-height: 240px; }
 
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side-head .section-title { font-size: 16px; }
 .ep-count { font-size: 12px; font-weight: 600; color: var(--muted); }
 
 
-.ep-tools { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 8px; .range { min-width: 0; } }
-.ep-search {
-  display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; min-width: 0;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted);
-  &:focus-within { border-color: var(--accent); }
-  input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--text); }
-}
+.ep-tools { .range { max-width: 220px; } }
 
 .ep-scroll { margin-right: -8px; }
 .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px; padding-right: 4px; }
@@ -126,3 +113,30 @@ h1 { font-size: clamp(17px, 2vw, 22px); font-weight: 700; }
   .details { grid-template-columns: 1fr; padding: 18px; }
   .cover { width: 130px; }
 }
+
+// ---------- Popup "xem tiếp" ----------
+.resume-overlay {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+  background: rgb(5 6 10 / .62); backdrop-filter: blur(3px);
+  animation: resume-fade .18s ease;
+}
+.resume-modal {
+  position: relative; width: min(380px, 100%); display: grid; justify-items: center; gap: 10px; text-align: center;
+  padding: 28px 24px 24px; border-radius: var(--radius-lg);
+  background: var(--surface-1, var(--surface-2)); border: 1px solid var(--line); box-shadow: var(--shadow-lg);
+  animation: resume-pop .2s ease;
+  h3 { font-size: 18px; font-weight: 700; }
+  p { font-size: 14px; color: var(--text-2); b { color: var(--text); font-weight: 700; } }
+}
+.resume-ic {
+  display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;
+  background: var(--accent-gradient); color: #fff; box-shadow: 0 8px 22px rgb(255 92 138 / .35);
+}
+.resume-close {
+  position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 30px; height: 30px;
+  border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer;
+  &:hover { color: var(--text); background: var(--surface-3); }
+}
+.resume-btns { width: 100%; display: grid; gap: 8px; margin-top: 6px; }
+@keyframes resume-fade { from { opacity: 0; } }
+@keyframes resume-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } }

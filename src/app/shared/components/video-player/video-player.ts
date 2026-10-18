@@ -2,6 +2,7 @@ import { Component, ElementRef, OnDestroy, effect, input, output, untracked, vie
 import Hls from 'hls.js';
 import { StreamType } from '@core/models/api.models';
 import { SafeResourceUrlPipe } from '@shared/pipes/safe-resource-url.pipe';
+import { UiIcon } from '@shared/ui';
 
 /** Không phát được trong khoảng này kể từ lúc nạp nguồn → coi là lỗi. */
 const STARTUP_TIMEOUT_MS = 20_000;
@@ -15,7 +16,7 @@ const STALL_TIMEOUT_MS = 25_000;
  */
 @Component({
   selector: 'app-video-player',
-  imports: [SafeResourceUrlPipe],
+  imports: [SafeResourceUrlPipe, UiIcon],
   templateUrl: './video-player.html',
   styleUrl: './video-player.scss',
 })
@@ -58,6 +59,20 @@ export class VideoPlayer implements OnDestroy {
   /** Vị trí đang phát (giây) – để tiếp tục ở nguồn khác. */
   currentTime(): number {
     return this.video()?.nativeElement.currentTime ?? 0;
+  }
+
+  /** Tổng thời lượng (giây), 0 nếu chưa biết. */
+  duration(): number {
+    const d = this.video()?.nativeElement.duration ?? 0;
+    return Number.isFinite(d) ? d : 0;
+  }
+
+  /** Tua tương đối (giây). Dùng cho nút -5s / +5s / bỏ qua mở đầu. */
+  seekBy(delta: number): void {
+    const video = this.video()?.nativeElement;
+    if (!video) return;
+    const duration = Number.isFinite(video.duration) ? video.duration : Infinity;
+    video.currentTime = Math.max(0, Math.min(duration, video.currentTime + delta));
   }
 
   // ---------- Sự kiện từ template ----------

@@ -16,6 +16,18 @@
       (waiting)="onWaiting()"
       (loadedmetadata)="onLoadedMetadata($event)"
       (error)="onVideoError()"></video>
+
+    <div class="ctl">
+      <button type="button" class="ctl-btn" title="Lùi 5 giây" (click)="seekBy(-5)">
+        <ui-icon name="refresh" [size]="15" /> 5s
+      </button>
+      <button type="button" class="ctl-btn" title="Tiến 5 giây" (click)="seekBy(5)">
+        5s <ui-icon name="refresh" [size]="15" />
+      </button>
+      <button type="button" class="ctl-btn skip" title="Bỏ qua đoạn mở đầu (~85 giây)" (click)="seekBy(85)">
+        Bỏ qua mở đầu <ui-icon name="chevron-right" [size]="15" />
+      </button>
+    </div>
   }
 
 </div>

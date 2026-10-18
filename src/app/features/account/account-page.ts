@@ -5,18 +5,10 @@ import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { UserAuth } from '@core/auth/user-auth';
 import { UserApi } from '@core/services/user-api';
-import { ActivityLog, WatchHistoryEntry, WatchlistItem } from '@core/models/user.models';
+import { WatchHistoryEntry, WatchlistItem } from '@core/models/user.models';
 import { ToastService, UiButton, UiEmptyState, UiIcon, UiSpinner } from '@shared/ui';
 
-type Tab = 'watchlist' | 'history' | 'activity';
-
-const ACTIONS: Record<string, string> = {
-  REGISTER: 'Tạo tài khoản',
-  LOGIN: 'Đăng nhập',
-  WATCH: 'Xem phim',
-  WATCHLIST_ADD: 'Lưu phim',
-  WATCHLIST_REMOVE: 'Bỏ lưu phim',
-};
+type Tab = 'watchlist' | 'history';
 
 @Component({
   selector: 'app-account-page',
@@ -35,7 +27,6 @@ const ACTIONS: Record<string, string> = {
       <nav class="tabs">
         <button class="tab" [class.on]="tab() === 'watchlist'" (click)="go('watchlist')"><ui-icon name="list" [size]="15" /> Phim đã lưu</button>
         <button class="tab" [class.on]="tab() === 'history'" (click)="go('history')"><ui-icon name="clock" [size]="15" /> Lịch sử xem</button>
-        <button class="tab" [class.on]="tab() === 'activity'" (click)="go('activity')"><ui-icon name="layers" [size]="15" /> Hoạt động</button>
       </nav>
 
       @if (loading()) {
@@ -89,22 +80,6 @@ const ACTIONS: Record<string, string> = {
               <ui-empty-state icon="clock" heading="Chưa có lịch sử xem" message="Lịch sử sẽ hiện ở đây khi bạn xem phim." />
             }
           }
-          @case ('activity') {
-            @if (activity().length) {
-              <ul class="logs">
-                @for (log of activity(); track log.id) {
-                  <li>
-                    <span class="act">{{ actionLabel(log.action) }}</span>
-                    @if (log.targetId) { <a [routerLink]="['/anime', +log.targetId]" class="tgt">#{{ log.targetId }}</a> }
-                    @if (log.detail) { <span class="text-muted">· {{ log.detail }}</span> }
-                    <time class="text-muted">{{ log.createdAt | date: 'HH:mm:ss dd/MM' }}</time>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <ui-empty-state icon="layers" heading="Chưa có hoạt động" />
-            }
-          }
         }
       }
     </section>
@@ -141,9 +116,6 @@ const ACTIONS: Record<string, string> = {
       display: flex; align-items: center; gap: 8px; padding: 11px 12px; border-radius: var(--radius-sm);
       font-size: 13.5px; &:nth-child(odd) { background: var(--surface-2); }
     }
-    .act { font-weight: 600; }
-    .tgt { color: var(--accent); font-weight: 600; }
-    .logs time { margin-left: auto; font-size: 12.5px; }
   `,
 })
 export class AccountPage {
@@ -162,7 +134,6 @@ export class AccountPage {
 
   protected readonly watchlist = signal<WatchlistItem[]>([]);
   protected readonly history = signal<WatchHistoryEntry[]>([]);
-  protected readonly activity = signal<ActivityLog[]>([]);
 
   constructor() {
     this.load();
@@ -178,15 +149,14 @@ export class AccountPage {
     this.loading.set(true);
     this.error.set(null);
     const tab = this.tab();
-    const source: Observable<WatchlistItem[] | WatchHistoryEntry[] | ActivityLog[]> =
-      tab === 'watchlist' ? this.api.watchlist() : tab === 'history' ? this.api.history() : this.api.activity();
+    const source: Observable<WatchlistItem[] | WatchHistoryEntry[]> =
+      tab === 'watchlist' ? this.api.watchlist() : this.api.history();
 
     source.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (data: WatchlistItem[] | WatchHistoryEntry[] | ActivityLog[]) => {
+      next: (data: WatchlistItem[] | WatchHistoryEntry[]) => {
         this.loading.set(false);
         if (tab === 'watchlist') this.watchlist.set(data as WatchlistItem[]);
-        else if (tab === 'history') this.history.set(data as WatchHistoryEntry[]);
-        else this.activity.set(data as ActivityLog[]);
+        else this.history.set(data as WatchHistoryEntry[]);
       },
       error: (message: string) => {
         this.loading.set(false);
@@ -200,10 +170,6 @@ export class AccountPage {
       next: () => this.watchlist.update(list => list.filter(x => x.animeId !== animeId)),
       error: (message: string) => this.toast.show('danger', 'Không bỏ lưu được', message),
     });
-  }
-
-  protected actionLabel(action: string): string {
-    return ACTIONS[action] ?? action;
   }
 
   protected logout(): void {

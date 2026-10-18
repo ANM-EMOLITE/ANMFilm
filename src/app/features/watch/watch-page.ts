@@ -1,10 +1,13 @@
-import { Component, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { Title } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { UserAuth } from '@core/auth/user-auth';
 import { UserApi } from '@core/services/user-api';
 import { formatLabel, pickDescription, seasonLabel, statusLabel } from '@core/utils/media.utils';
 import { VideoPlayer } from '@shared/components/video-player/video-player';
 import { DropdownOption, ToastService, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner } from '@shared/ui';
+import { CommentsSection } from './comments/comments-section';
+import { RelatedSection } from './related/related-section';
 import { WatchStore, sameEpisode } from './watch-store';
 
 /** Danh sách tập dài thì chia nhóm (1–100, 101–200…). */
@@ -12,7 +15,7 @@ const RANGE_SIZE = 100;
 
 @Component({
   selector: 'app-watch-page',
-  imports: [RouterLink, VideoPlayer, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner],
+  imports: [RouterLink, VideoPlayer, CommentsSection, RelatedSection, UiBadge, UiButton, UiDropdown, UiEmptyState, UiIcon, UiScrollArea, UiSkeleton, UiSpinner],
   providers: [WatchStore],
   templateUrl: './watch-page.html',
   styleUrl: './watch-page.scss',
@@ -23,6 +26,20 @@ export class WatchPage {
   protected readonly auth = inject(UserAuth);
   private readonly userApi = inject(UserApi);
   private readonly toast = inject(ToastService);
+  private readonly titleService = inject(Title);
+  private readonly destroyRef = inject(DestroyRef);
+
+  // ---------- Xem tiếp ----------
+  /** Popup xem tiếp (tập + vị trí đã lưu). */
+  protected readonly resume = signal<{ episode: string; time: number } | null>(null);
+  private resumeChecked = false;
+  private progressTimer?: ReturnType<typeof setInterval>;
+
+  /** Link tải xuống – chỉ với nguồn DIRECT (mp4). HLS/EMBED không tải trực tiếp được. */
+  protected readonly downloadUrl = computed(() => {
+    const src = this.store.source();
+    return src && src.type === 'DIRECT' ? this.store.playUrl() : null;
+  });
 
   /** Route param :id và query ?ep= (withComponentInputBinding). */
   readonly id = input.required<string>();
@@ -37,6 +54,16 @@ export class WatchPage {
   private animeId(): number {
     return Number(this.id());
   }
+
+  /** Số phim hiện tại (cho phần bình luận). */
+  protected readonly animeIdNum = computed(() => Number(this.id()));
+
+  /** Tập đang xem dạng số (null nếu không phải số) — gửi kèm bình luận. */
+  protected readonly currentEpisodeNum = computed(() => {
+    const e = this.store.episodeNumber();
+    const n = Number(e);
+    return e && Number.isFinite(n) ? n : null;
+  });
 
   private cover(): string | null {
     const images = this.store.media()?.images;
@@ -97,9 +124,45 @@ export class WatchPage {
       untracked(() => {
         this.episodeQuery.set('');
         this.descExpanded.set(false);
-        void this.store.load(id, this.ep());
+        this.resume.set(null);
+        this.resumeChecked = false;
+        // Không tự phát: chỉ tải danh sách tập, để người xem tự bấm.
+        void this.store.load(id);
       });
     });
+
+    // Tiêu đề tab = tên phim · AnimeEmolite.
+    effect(() => {
+      const title = this.store.title();
+      this.titleService.setTitle(this.store.media() ? `${title} · AnimeEmolite` : 'AnimeEmolite');
+    });
+
+    // Khi có danh sách tập: về đúng tập mục tiêu (URL ?ep hoặc tập xem gần nhất) ở trạng thái chờ,
+    // rồi nếu tập đó xem dở thì bật popup hỏi xem tiếp.
+    effect(() => {
+      const eps = this.store.episodes();
+      const media = this.store.media();
+      if (!media || !eps.length) return;
+      untracked(() => {
+        if (this.resumeChecked) return;
+        this.resumeChecked = true;
+
+        const fromUrl = this.ep();
+        const target =
+          fromUrl && eps.some(e => sameEpisode(e.episodeNumber, fromUrl)) ? fromUrl : this.readLast();
+        if (!target || !eps.some(e => sameEpisode(e.episodeNumber, target))) return;
+
+        this.store.select(target);
+        const time = this.readEpisodeProgress(target);
+        if (time != null && time > 30) {
+          this.resume.set({ episode: target, time: Math.floor(time) });
+        }
+      });
+    });
+
+    // Lưu tiến độ xem mỗi 5 giây để lần sau quay lại xem tiếp.
+    this.progressTimer = setInterval(() => this.saveProgress(), 5000);
+    this.destroyRef.onDestroy(() => clearInterval(this.progressTimer));
 
     // Đồng bộ tập đang xem lên URL (?ep=) để F5 / chia sẻ link vẫn đúng tập.
     effect(() => {
@@ -192,14 +255,39 @@ export class WatchPage {
     }
   }
 
-  protected play(episodeNumber: string): void {
-    void this.store.play(episodeNumber);
+  protected play(episodeNumber: string, startAt = 0): void {
+    void this.store.play(episodeNumber, startAt);
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  protected playFirst(): void {
-    const first = this.store.episodes()[0];
-    if (first) this.play(first.episodeNumber);
+  /**
+   * Chọn một tập: về tập đó ở trạng thái chờ (poster + nút play), KHÔNG tự phát.
+   * Nếu tập đó đang xem dở → bật popup hỏi xem tiếp.
+   */
+  protected requestPlay(episodeNumber: string): void {
+    this.store.select(episodeNumber);
+    if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const time = this.readEpisodeProgress(episodeNumber);
+    if (time != null && time > 30) {
+      this.resume.set({ episode: episodeNumber, time: Math.floor(time) });
+    }
+  }
+
+  protected goNext(): void {
+    const ep = this.store.episodes()[this.store.episodeIndex() + 1];
+    if (ep) this.requestPlay(ep.episodeNumber);
+  }
+
+  protected goPrev(): void {
+    const ep = this.store.episodes()[this.store.episodeIndex() - 1];
+    if (ep) this.requestPlay(ep.episodeNumber);
+  }
+
+  /** Nút play trên poster: phát tập đang chọn (hoặc tập đầu) từ đầu. */
+  protected startCurrent(): void {
+    const ep = this.store.episodeNumber() ?? this.store.episodes()[0]?.episodeNumber;
+    if (ep) this.play(ep, 0);
   }
 
   protected onPlayerError(message: string): void {
@@ -212,6 +300,87 @@ export class WatchPage {
 
   protected onEpisodeQuery(event: Event): void {
     this.episodeQuery.set((event.target as HTMLInputElement).value);
+  }
+
+  // ---------- Xem tiếp ----------
+  /** "Tiếp tục": phát đúng tập, đúng vị trí đã lưu. */
+  protected continueResume(): void {
+    const r = this.resume();
+    if (!r) return;
+    this.resume.set(null);
+    this.play(r.episode, r.time);
+  }
+
+  /** "Xem từ đầu": phát tập đó từ 0. */
+  protected startOver(): void {
+    const r = this.resume();
+    if (!r) return;
+    this.resume.set(null);
+    this.play(r.episode, 0);
+  }
+
+  /** Đóng popup (không phát gì mới). */
+  protected dismissResume(): void {
+    this.resume.set(null);
+  }
+
+  /** Định dạng giây → "mm:ss" hoặc "h:mm:ss". */
+  protected formatTime(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+  }
+
+  private progressKey(ep: string): string {
+    return `ae-progress:${this.animeId()}:${ep}`;
+  }
+
+  private lastKey(): string {
+    return `ae-last:${this.animeId()}`;
+  }
+
+  /** Tiến độ (giây) đã lưu của 1 tập, null nếu chưa có. */
+  private readEpisodeProgress(ep: string): number | null {
+    try {
+      const raw = localStorage.getItem(this.progressKey(ep));
+      const n = raw ? Number(raw) : NaN;
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Tập xem gần nhất của phim này. */
+  private readLast(): string | null {
+    try {
+      return localStorage.getItem(this.lastKey());
+    } catch {
+      return null;
+    }
+  }
+
+  private saveProgress(): void {
+    if (this.store.phase() !== 'playing') return;
+    const ep = this.store.episodeNumber();
+    const player = this.player();
+    if (!ep || !player) return;
+
+    const time = player.currentTime();
+    const duration = player.duration();
+    try {
+      // Gần hết tập (>95%) thì xoá để lần sau không gợi ý xem tiếp đoạn cuối.
+      if (duration > 0 && time / duration > 0.95) {
+        localStorage.removeItem(this.progressKey(ep));
+      } else if (time > 5) {
+        localStorage.setItem(this.progressKey(ep), String(Math.floor(time)));
+        localStorage.setItem(this.lastKey(), ep);
+      }
+    } catch {
+      /* storage bị chặn → bỏ qua */
+    }
   }
 }
 
